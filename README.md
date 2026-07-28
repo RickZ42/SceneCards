@@ -8,8 +8,11 @@ of reducing an expression to a translation pair.
 
 ```bash
 npm install
-npm run dev
+npm start
 ```
+
+`npm start` builds the current cards and serves the stable local app at
+`http://127.0.0.1:5173/`.
 
 The app stores cards and review history in the current browser's local storage.
 Use the download button in the header to create a portable JSON backup, and the

@@ -1,28 +1,26 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ArchiveRestore,
-  BookOpen,
-  CalendarClock,
-  Check,
-  ChevronRight,
-  Download,
-  Edit3,
-  Eye,
-  Flame,
-  Library,
-  Plus,
-  Search,
-  Sparkles,
-  Trash2,
-  Upload,
-  Volume2,
-  X,
-} from "lucide-react";
+import ArchiveRestore from "lucide-react/dist/esm/icons/archive-restore.js";
+import BookOpen from "lucide-react/dist/esm/icons/book-open.js";
+import CalendarClock from "lucide-react/dist/esm/icons/calendar-clock.js";
+import Check from "lucide-react/dist/esm/icons/check.js";
+import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.js";
+import Download from "lucide-react/dist/esm/icons/download.js";
+import Edit3 from "lucide-react/dist/esm/icons/edit-3.js";
+import Eye from "lucide-react/dist/esm/icons/eye.js";
+import Flame from "lucide-react/dist/esm/icons/flame.js";
+import Library from "lucide-react/dist/esm/icons/library.js";
+import Plus from "lucide-react/dist/esm/icons/plus.js";
+import Search from "lucide-react/dist/esm/icons/search.js";
+import Sparkles from "lucide-react/dist/esm/icons/sparkles.js";
+import Trash2 from "lucide-react/dist/esm/icons/trash-2.js";
+import Upload from "lucide-react/dist/esm/icons/upload.js";
+import Volume2 from "lucide-react/dist/esm/icons/volume-2.js";
+import X from "lucide-react/dist/esm/icons/x.js";
 
 const STORAGE_KEY = "scenecards.data.v1";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const sampleCard = {
+const boomerangCard = {
   id: "sample-boomerang",
   expression: "boomerang",
   pronunciation: "/ˈbuː.mə.ræŋ/",
@@ -44,6 +42,34 @@ const sampleCard = {
   lastReviewedAt: null,
 };
 
+const exploitCard = {
+  id: "research-exploit-thynnine-orchid",
+  expression: "exploit",
+  pronunciation: "/ɪkˈsplɔɪt/",
+  meaning:
+    "利用某种机制、弱点或机会，使自己获益；这里指性欺骗兰花利用 thynnine 蜂正常的配偶搜索机制完成授粉。",
+  originalLine:
+    "These results provide an exciting foundation for investigating chemical communication and how sexually deceptive orchids exploit the normal mate-search system of their thynnine wasp pollinators.",
+  sceneContext:
+    "科研论文语境：兰花借助或操纵传粉蜂正常寻找配偶的系统，达到自身的授粉目的。",
+  personalExample:
+    "Some parasites exploit their hosts' behaviour to complete their life cycle.",
+  memoryHook:
+    "exploit = use something to your own advantage；比 use 更强调借力、占便宜或操纵。",
+  source: "Research paper - thynnine wasp pollination",
+  tags: ["research", "biology", "verb"],
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  dueAt: new Date().toISOString(),
+  intervalDays: 0,
+  ease: 2.5,
+  repetitions: 0,
+  lapses: 0,
+  lastReviewedAt: null,
+};
+
+const bundledCards = [boomerangCard, exploitCard];
+
 const emptyForm = {
   expression: "",
   pronunciation: "",
@@ -56,16 +82,42 @@ const emptyForm = {
   tags: "",
 };
 
+function mergeBundledCards(data) {
+  const cards = Array.isArray(data.cards) ? data.cards : [];
+  const bundledIds = new Set(bundledCards.map((card) => card.id));
+  const installedSeeds = new Set(
+    Array.isArray(data.installedSeeds)
+      ? data.installedSeeds
+      : cards
+          .filter((card) => bundledIds.has(card.id))
+          .map((card) => card.id),
+  );
+  const existingExpressions = new Set(
+    cards.map((card) => card.expression?.trim().toLowerCase()).filter(Boolean),
+  );
+  const additions = bundledCards.filter(
+    (card) =>
+      !installedSeeds.has(card.id) &&
+      !existingExpressions.has(card.expression.toLowerCase()),
+  );
+
+  return {
+    cards: [...additions, ...cards],
+    reviews: Array.isArray(data.reviews) ? data.reviews : [],
+    installedSeeds: [...bundledIds],
+  };
+}
+
 function loadStore() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (saved && Array.isArray(saved.cards)) {
-      return { cards: saved.cards, reviews: saved.reviews || [] };
+      return mergeBundledCards(saved);
     }
   } catch {
     // A damaged local backup should not prevent the app from opening.
   }
-  return { cards: [sampleCard], reviews: [] };
+  return mergeBundledCards({ cards: [], reviews: [], installedSeeds: [] });
 }
 
 function localDateKey(value = new Date()) {
@@ -269,6 +321,7 @@ function App() {
       at: new Date().toISOString(),
     };
     setStore((previous) => ({
+      ...previous,
       cards: previous.cards.map((card) =>
         card.id === currentCard.id ? reviewed : card,
       ),
@@ -350,6 +403,7 @@ function App() {
     const confirmed = window.confirm(`删除“${card.expression}”？此操作无法撤销。`);
     if (!confirmed) return;
     setStore((previous) => ({
+      ...previous,
       cards: previous.cards.filter((item) => item.id !== card.id),
       reviews: previous.reviews.filter((review) => review.cardId !== card.id),
     }));
@@ -387,7 +441,7 @@ function App() {
           `导入 ${data.cards.length} 张卡片并替换当前内容？`,
         );
         if (confirmed) {
-          setStore({ cards: data.cards, reviews: data.reviews || [] });
+          setStore(mergeBundledCards(data));
           setRevealed(false);
           setToast("备份已恢复");
         }

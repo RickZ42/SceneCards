@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build": "vite build",
+    "prestart": "vite build",
+    "start": "vite preview --host 127.0.0.1 --port 5173 --strictPort",
     "preview": "vite preview"
   },
   "dependencies": {
