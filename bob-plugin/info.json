@@ -1,6 +1,6 @@
 {
   "identifier": "com.rick.scenecards",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "category": "translate",
   "name": "SceneCards 收词",
   "summary": "把 Bob 查到的英文送进本机 SceneCards 闪卡",
@@ -20,16 +20,12 @@
     {
       "identifier": "captureMode",
       "type": "menu",
-      "title": "自动收录范围",
-      "defaultValue": "short",
+      "title": "添加方式",
+      "defaultValue": "favorite",
       "menuValues": [
         {
-          "title": "只收录英文单词和短语",
-          "value": "short"
-        },
-        {
-          "title": "收录每一次查询",
-          "value": "all"
+          "title": "使用 Bob 收藏按钮",
+          "value": "favorite"
         },
         {
           "title": "只收录带标记的查询",
@@ -42,7 +38,7 @@
       "type": "text",
       "title": "手动添加标记",
       "defaultValue": "+sc",
-      "desc": "选择“只收录带标记的查询”时，在输入末尾加上此标记。"
+      "desc": "普通翻译不会添加。选择手动标记模式后，在输入末尾加上此标记。"
     },
     {
       "identifier": "separator",

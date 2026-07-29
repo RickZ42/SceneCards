@@ -20,21 +20,28 @@ upload button to restore one.
 
 ## Bob integration
 
-Build the installable Bob plugin:
+SceneCards watches Bob's native favorites locally. Translate normally, then use
+Bob's favorite button or press `Command-S` only when a result should become a
+flashcard. Existing favorites are ignored during first-time setup; only newly
+favorited results are imported. The translated meaning is included when Bob has
+a successful translation result.
+
+The favorite watcher does not require the `SceneCards 收词` translation service
+to stay enabled; that service can be disabled if its status panel is not useful.
+
+The optional Bob plugin supports an additional manual marker workflow. Build it
+with:
 
 ```bash
 npm run plugin:pack
 ```
 
-Then open `output/SceneCards-0.1.0.bobplugin` to install it in Bob. Keep
-SceneCards running while using the `SceneCards 收词` translation service.
-
-By default, English words and short phrases are added automatically. A query
-without a meaning goes to the `Bob 收件箱` for later editing. Use the following
-format to create a review-ready card immediately:
+Then open `output/SceneCards-0.2.0.bobplugin` to install it in Bob. Ordinary
+translations never add cards. In the plugin settings, choose manual marker mode
+to add only marked input:
 
 ```text
-exploit || 利用某种机制或弱点使自己获益 || Orchids exploit the normal mate-search system.
+exploit || 利用某种机制或弱点使自己获益 || Orchids exploit the normal mate-search system. +sc
 ```
 
 The bridge listens only on `127.0.0.1`. Incoming Bob items are briefly written

@@ -33,13 +33,6 @@ function serviceError(message) {
   };
 }
 
-function isShortEnglishExpression(text) {
-  if (text.length > 80 || !/[A-Za-z]/.test(text)) return false;
-  if (/[^A-Za-z0-9'’\-\s.,!?()]/.test(text)) return false;
-  var words = text.match(/[A-Za-z]+(?:['’\-][A-Za-z]+)*/g) || [];
-  return words.length > 0 && words.length <= 6;
-}
-
 function parseCard(rawText) {
   var separator = ($option.separator || "||").trim() || "||";
   var pieces = rawText.split(separator).map(function (piece) {
@@ -54,7 +47,7 @@ function parseCard(rawText) {
 
 function translate(query, completion) {
   var rawText = String(query.originalText || query.text || "").trim();
-  var captureMode = $option.captureMode || "short";
+  var captureMode = $option.captureMode || "favorite";
   var marker = ($option.marker || "+sc").trim() || "+sc";
 
   if (!rawText) {
@@ -62,20 +55,22 @@ function translate(query, completion) {
     return;
   }
 
-  if (captureMode === "marker") {
-    if (!rawText.endsWith(marker)) {
-      finish(query, completion, result(query, "未加入：末尾没有 " + marker + " 标记。"));
-      return;
-    }
-    rawText = rawText.slice(0, -marker.length).trim();
-  }
-
-  var card = parseCard(rawText);
-  if (captureMode === "short" && !isShortEnglishExpression(card.expression)) {
-    finish(query, completion, result(query, "未加入：默认只自动收录英文单词和短语。"));
+  if (captureMode !== "marker") {
+    finish(
+      query,
+      completion,
+      result(query, "普通翻译不会加入卡片。需要时请点 Bob 收藏按钮，或按 ⌘S。"),
+    );
     return;
   }
 
+  if (!rawText.endsWith(marker)) {
+    finish(query, completion, result(query, "未加入：末尾没有 " + marker + " 标记。"));
+    return;
+  }
+  rawText = rawText.slice(0, -marker.length).trim();
+
+  var card = parseCard(rawText);
   if (!card.expression) {
     finish(query, completion, result(query, "未加入：英语表达不能为空。"));
     return;
@@ -89,8 +84,8 @@ function translate(query, completion) {
       expression: card.expression,
       meaning: card.meaning,
       originalLine: card.originalLine,
-      source: "Bob",
-      tags: ["Bob"],
+      source: "Bob 手动标记",
+      tags: ["Bob", "manual"],
     },
     timeout: 8,
     cancelSignal: query.cancelSignal,

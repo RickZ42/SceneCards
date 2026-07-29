@@ -21,20 +21,18 @@ if [ -f "$project_dir/data/bob-inbox.json" ] && [ ! -f "$runtime_dir/data/bob-in
   install -m 0644 "$project_dir/data/bob-inbox.json" "$runtime_dir/data/bob-inbox.json"
 fi
 plutil -lint "$source_plist" >/dev/null
-if launchctl print "$domain/$label" >/dev/null 2>&1; then
-  launchctl bootout "$domain/$label"
-  sleep 1
-fi
 install -m 0644 "$source_plist" "$target_plist"
 
-attempt=1
-while ! launchctl bootstrap "$domain" "$target_plist"; do
-  if [ "$attempt" -ge 3 ]; then
-    printf 'Could not register the SceneCards background service.\n' >&2
-    exit 1
-  fi
-  attempt=$((attempt + 1))
-  sleep 1
-done
+if ! launchctl print "$domain/$label" >/dev/null 2>&1; then
+  attempt=1
+  while ! launchctl bootstrap "$domain" "$target_plist"; do
+    if [ "$attempt" -ge 3 ]; then
+      printf 'Could not register the SceneCards background service.\n' >&2
+      exit 1
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+fi
 launchctl kickstart -k "$domain/$label"
 printf 'SceneCards background service installed.\n'

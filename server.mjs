@@ -1,15 +1,24 @@
+import { execFile } from "node:child_process";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(rootDir, "dist");
-const dataDir = path.join(rootDir, "data");
+const dataDir = process.env.SCENECARDS_DATA_DIR || path.join(rootDir, "data");
 const inboxPath = path.join(dataDir, "bob-inbox.json");
+const favoriteCursorPath = path.join(dataDir, "bob-favorite-cursor.json");
+const bobDatabasePath = process.env.BOB_DATABASE_PATH || path.join(
+  homedir(),
+  "Library/Containers/com.hezongyidev.Bob/Data/Documents/bob-core.sqlite",
+);
 const host = "127.0.0.1";
 const port = Number(process.env.PORT || 5173);
+const execFileAsync = promisify(execFile);
 const allowedOrigins = new Set([
   `http://${host}:${port}`,
   `http://localhost:${port}`,
@@ -27,6 +36,12 @@ const contentTypes = {
 };
 
 let inboxMutation = Promise.resolve();
+let favoritePolling = false;
+const favoriteWatcher = {
+  state: "starting",
+  lastFavoriteId: null,
+  error: null,
+};
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -93,6 +108,159 @@ function mutateInbox(change) {
   return operation;
 }
 
+async function enqueueCard(body) {
+  const expression = cleanText(body.expression, 400);
+  if (!expression) throw new Error("expression is required");
+
+  const incoming = {
+    id: randomUUID(),
+    expression,
+    meaning: cleanText(body.meaning, 4000),
+    originalLine: cleanText(body.originalLine, 6000),
+    source: cleanText(body.source, 200) || "Bob",
+    tags: Array.isArray(body.tags)
+      ? body.tags.map((tag) => cleanText(tag, 60)).filter(Boolean).slice(0, 12)
+      : ["Bob"],
+    createdAt: new Date().toISOString(),
+  };
+
+  return mutateInbox((cards) => {
+    const duplicate = cards.find(
+      (card) =>
+        normalize(card.expression) === normalize(incoming.expression) &&
+        normalize(card.originalLine || "") === normalize(incoming.originalLine),
+    );
+    if (duplicate) return { cards, value: { card: duplicate, duplicate: true } };
+    return { cards: [...cards, incoming], value: { card: incoming, duplicate: false } };
+  });
+}
+
+async function queryBobDatabase(sql) {
+  const { stdout } = await execFileAsync(
+    "/usr/bin/sqlite3",
+    ["-readonly", "-json", bobDatabasePath, ".timeout 1000", sql],
+    { maxBuffer: 5 * 1024 * 1024 },
+  );
+  return stdout.trim() ? JSON.parse(stdout) : [];
+}
+
+function extractFavoriteMeaning(row) {
+  for (let index = 0; index < 12; index += 1) {
+    const rawTuple = row[`resultTuple${index}`];
+    if (!rawTuple) continue;
+
+    try {
+      const tuple = JSON.parse(rawTuple);
+      if (tuple.overview?.identifier === "com.rick.scenecards") continue;
+      const result = tuple.result;
+      if (!result || typeof result !== "object") continue;
+
+      const parts = Array.isArray(result.toDict?.parts) ? result.toDict.parts : [];
+      const dictionaryMeaning = parts
+        .map((part) => {
+          const means = Array.isArray(part.means) ? part.means.filter(Boolean) : [];
+          if (!means.length) return "";
+          return `${part.part ? `${part.part} ` : ""}${means.join("；")}`;
+        })
+        .filter(Boolean)
+        .join("\n");
+      if (dictionaryMeaning) return cleanText(dictionaryMeaning, 4000);
+
+      const paragraphs = Array.isArray(result.toParagraphs)
+        ? result.toParagraphs.filter((paragraph) => typeof paragraph === "string")
+        : [];
+      const translatedText = paragraphs.join("\n").trim();
+      if (translatedText) return cleanText(translatedText, 4000);
+    } catch {
+      // A broken result from one service should not hide other valid translations.
+    }
+  }
+  return "";
+}
+
+async function readFavoriteCursor() {
+  try {
+    const value = JSON.parse(await readFileWithRetry(favoriteCursorPath, "utf8"));
+    return Number.isInteger(value.lastFavoriteId) ? value.lastFavoriteId : null;
+  } catch (error) {
+    if (error.code === "ENOENT" || error instanceof SyntaxError) return null;
+    throw error;
+  }
+}
+
+async function writeFavoriteCursor(lastFavoriteId) {
+  await mkdir(dataDir, { recursive: true });
+  const temporaryPath = `${favoriteCursorPath}.${randomUUID()}.tmp`;
+  await writeFile(
+    temporaryPath,
+    `${JSON.stringify({ version: 1, lastFavoriteId }, null, 2)}\n`,
+    "utf8",
+  );
+  await rename(temporaryPath, favoriteCursorPath);
+}
+
+async function pollBobFavorites() {
+  if (favoritePolling) return;
+  favoritePolling = true;
+
+  try {
+    if (favoriteWatcher.lastFavoriteId === null) {
+      const savedCursor = await readFavoriteCursor();
+      if (savedCursor !== null) {
+        favoriteWatcher.lastFavoriteId = savedCursor;
+      } else {
+        const rows = await queryBobDatabase(
+          "SELECT COALESCE(MAX(localId), 0) AS localId FROM translate_translate_favorite;",
+        );
+        favoriteWatcher.lastFavoriteId = Number(rows[0]?.localId || 0);
+        await writeFavoriteCursor(favoriteWatcher.lastFavoriteId);
+      }
+      favoriteWatcher.state = "ready";
+      favoriteWatcher.error = null;
+      return;
+    }
+
+    const tupleColumns = Array.from(
+      { length: 12 },
+      (_, index) => `resultTuple${index}`,
+    ).join(", ");
+    const rows = await queryBobDatabase(
+      `SELECT localId, queryText, ${tupleColumns} ` +
+        "FROM translate_translate_favorite " +
+        `WHERE localId > ${favoriteWatcher.lastFavoriteId} ORDER BY localId ASC;`,
+    );
+
+    for (const row of rows) {
+      const expression = cleanText(row.queryText, 400);
+      if (expression) {
+        await enqueueCard({
+          expression,
+          meaning: extractFavoriteMeaning(row),
+          originalLine: "",
+          source: "Bob 收藏",
+          tags: ["Bob", "favorite"],
+        });
+      }
+      favoriteWatcher.lastFavoriteId = Number(row.localId);
+      await writeFavoriteCursor(favoriteWatcher.lastFavoriteId);
+    }
+
+    favoriteWatcher.state = "ready";
+    favoriteWatcher.error = null;
+  } catch (error) {
+    favoriteWatcher.state = "unavailable";
+    favoriteWatcher.error = error.message;
+  } finally {
+    favoritePolling = false;
+  }
+}
+
+function startBobFavoriteWatcher() {
+  pollBobFavorites();
+  const interval = setInterval(pollBobFavorites, 3_000);
+  interval.unref();
+}
+
 async function readJsonBody(request) {
   const chunks = [];
   let size = 0;
@@ -116,7 +284,14 @@ async function handleApi(request, response, pathname) {
   }
 
   if (request.method === "GET" && pathname === "/api/health") {
-    sendJson(response, 200, { ok: true, app: "SceneCards" });
+    sendJson(response, 200, {
+      ok: true,
+      app: "SceneCards",
+      bobFavorites: {
+        state: favoriteWatcher.state,
+        lastFavoriteId: favoriteWatcher.lastFavoriteId,
+      },
+    });
     return;
   }
 
@@ -127,33 +302,11 @@ async function handleApi(request, response, pathname) {
 
   if (request.method === "POST" && pathname === "/api/cards") {
     const body = await readJsonBody(request);
-    const expression = cleanText(body.expression, 400);
-    if (!expression) {
+    if (!cleanText(body.expression, 400)) {
       sendJson(response, 400, { error: "expression is required" });
       return;
     }
-
-    const incoming = {
-      id: randomUUID(),
-      expression,
-      meaning: cleanText(body.meaning, 4000),
-      originalLine: cleanText(body.originalLine, 6000),
-      source: cleanText(body.source, 200) || "Bob",
-      tags: Array.isArray(body.tags)
-        ? body.tags.map((tag) => cleanText(tag, 60)).filter(Boolean).slice(0, 12)
-        : ["Bob"],
-      createdAt: new Date().toISOString(),
-    };
-
-    const result = await mutateInbox((cards) => {
-      const duplicate = cards.find(
-        (card) =>
-          normalize(card.expression) === normalize(incoming.expression) &&
-          normalize(card.originalLine || "") === normalize(incoming.originalLine),
-      );
-      if (duplicate) return { cards, value: { card: duplicate, duplicate: true } };
-      return { cards: [...cards, incoming], value: { card: incoming, duplicate: false } };
-    });
+    const result = await enqueueCard(body);
 
     sendJson(response, result.duplicate ? 200 : 201, { ok: true, ...result });
     return;
@@ -216,3 +369,5 @@ const server = createServer(async (request, response) => {
 server.listen(port, host, () => {
   console.log(`SceneCards is running at http://${host}:${port}/`);
 });
+
+startBobFavoriteWatcher();
