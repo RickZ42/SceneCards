@@ -5,11 +5,21 @@ label="com.rick.scenecards"
 project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 source_plist="$project_dir/macos/$label.plist"
 target_plist="$HOME/Library/LaunchAgents/$label.plist"
+runtime_dir="$HOME/Library/Application Support/SceneCards"
 domain="gui/$(id -u)"
 
 cd "$project_dir"
 npm run build
-mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/SceneCards"
+mkdir -p \
+  "$HOME/Library/LaunchAgents" \
+  "$HOME/Library/Logs/SceneCards" \
+  "$runtime_dir/dist" \
+  "$runtime_dir/data"
+install -m 0644 "$project_dir/server.mjs" "$runtime_dir/server.mjs"
+cp -R "$project_dir/dist/." "$runtime_dir/dist/"
+if [ -f "$project_dir/data/bob-inbox.json" ] && [ ! -f "$runtime_dir/data/bob-inbox.json" ]; then
+  install -m 0644 "$project_dir/data/bob-inbox.json" "$runtime_dir/data/bob-inbox.json"
+fi
 plutil -lint "$source_plist" >/dev/null
 if launchctl print "$domain/$label" >/dev/null 2>&1; then
   launchctl bootout "$domain/$label"

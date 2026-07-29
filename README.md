@@ -38,7 +38,8 @@ exploit || 利用某种机制或弱点使自己获益 || Orchids exploit the nor
 ```
 
 The bridge listens only on `127.0.0.1`. Incoming Bob items are briefly written
-to `data/bob-inbox.json`, then moved into the browser's local SceneCards store.
+under `~/Library/Application Support/SceneCards`, then moved into the browser's
+local SceneCards store.
 
 ### Start automatically on this Mac
 

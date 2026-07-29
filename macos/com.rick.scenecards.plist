@@ -7,10 +7,10 @@
   <key>ProgramArguments</key>
   <array>
     <string>/opt/homebrew/bin/node</string>
-    <string>/Users/rick/Documents/SceneCards/server.mjs</string>
+    <string>/Users/rick/Library/Application Support/SceneCards/server.mjs</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/rick/Documents/SceneCards</string>
+  <string>/Users/rick/Library/Application Support/SceneCards</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
