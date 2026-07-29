@@ -24,7 +24,10 @@ SceneCards watches Bob's native favorites locally. Translate normally, then use
 Bob's favorite button or press `Command-S` only when a result should become a
 flashcard. Existing favorites are ignored during first-time setup; only newly
 favorited results are imported. The translated meaning is included when Bob has
-a successful translation result.
+a successful translation result. When Bob's dictionary result includes an
+example, SceneCards also imports its English sentence, Chinese sentence meaning,
+pronunciation, and a contextual memory cue. Incomplete results stay in the Bob
+inbox until they are edited instead of entering the review queue.
 
 The favorite watcher does not require the `SceneCards 收词` translation service
 to stay enabled; that service can be disabled if its status panel is not useful.

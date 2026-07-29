@@ -93,20 +93,24 @@ function captureKey(card) {
   return `${expression}\u0000${originalLine}`;
 }
 
+function captureExpressionKey(card) {
+  return (card.expression || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 function captureToCard(capture) {
   const now = capture.createdAt || new Date().toISOString();
   const meaning = (capture.meaning || "").trim();
   return {
     id: `bob-${capture.id}`,
     captureId: capture.id,
-    status: meaning ? "active" : "draft",
+    status: meaning && !capture.needsEditing ? "active" : "draft",
     expression: capture.expression.trim(),
-    pronunciation: "",
+    pronunciation: capture.pronunciation || "",
     meaning,
     originalLine: capture.originalLine || "",
-    sceneContext: "",
-    personalExample: "",
-    memoryHook: "",
+    sceneContext: capture.sceneContext || "",
+    personalExample: capture.personalExample || "",
+    memoryHook: capture.memoryHook || "",
     source: capture.source || "Bob",
     tags: Array.from(new Set([...(capture.tags || []), "Bob"])),
     createdAt: now,
@@ -281,7 +285,7 @@ function App() {
       if (syncing) return;
       syncing = true;
       try {
-        const response = await fetch("/api/inbox", { cache: "no-store" });
+        const response = await fetch("/api/inbox?schema=2", { cache: "no-store" });
         if (!response.ok) return;
         const payload = await response.json();
         const captures = Array.isArray(payload.cards) ? payload.cards : [];
@@ -296,20 +300,39 @@ function App() {
             const existingIndex = cards.findIndex(
               (card) =>
                 card.captureId === incoming.captureId ||
-                captureKey(card) === captureKey(incoming),
+                captureKey(card) === captureKey(incoming) ||
+                (card.source === "Bob 收藏" &&
+                  incoming.source === "Bob 收藏" &&
+                  captureExpressionKey(card) === captureExpressionKey(incoming)),
             );
 
             if (existingIndex === -1) {
               cards.unshift(incoming);
               changed = true;
-            } else if (isDraft(cards[existingIndex]) && incoming.meaning) {
-              cards[existingIndex] = {
-                ...cards[existingIndex],
-                meaning: incoming.meaning,
-                status: "active",
-                updatedAt: new Date().toISOString(),
+            } else {
+              const existing = cards[existingIndex];
+              const enrichment = {
+                pronunciation: existing.pronunciation || incoming.pronunciation,
+                meaning: existing.meaning || incoming.meaning,
+                originalLine: existing.originalLine || incoming.originalLine,
+                sceneContext: existing.sceneContext || incoming.sceneContext,
+                personalExample: existing.personalExample || incoming.personalExample,
+                memoryHook: existing.memoryHook || incoming.memoryHook,
               };
-              changed = true;
+              const addsContext = Object.entries(enrichment).some(
+                ([field, value]) => !existing[field] && Boolean(value),
+              );
+              const activatesDraft = isDraft(existing) && !isDraft(incoming);
+              if (addsContext || activatesDraft) {
+                cards[existingIndex] = {
+                  ...existing,
+                  ...enrichment,
+                  captureId: incoming.captureId,
+                  status: activatesDraft ? "active" : existing.status,
+                  updatedAt: new Date().toISOString(),
+                };
+                changed = true;
+              }
             }
           }
 

@@ -115,12 +115,20 @@ async function enqueueCard(body) {
   const incoming = {
     id: randomUUID(),
     expression,
+    pronunciation: cleanText(body.pronunciation, 300),
     meaning: cleanText(body.meaning, 4000),
     originalLine: cleanText(body.originalLine, 6000),
+    sceneContext: cleanText(body.sceneContext, 4000),
+    personalExample: cleanText(body.personalExample, 4000),
+    memoryHook: cleanText(body.memoryHook, 2000),
     source: cleanText(body.source, 200) || "Bob",
     tags: Array.isArray(body.tags)
       ? body.tags.map((tag) => cleanText(tag, 60)).filter(Boolean).slice(0, 12)
       : ["Bob"],
+    needsEditing: Boolean(body.needsEditing),
+    minimumClientSchema: Number.isInteger(body.minimumClientSchema)
+      ? body.minimumClientSchema
+      : 1,
     createdAt: new Date().toISOString(),
   };
 
@@ -144,7 +152,15 @@ async function queryBobDatabase(sql) {
   return stdout.trim() ? JSON.parse(stdout) : [];
 }
 
-function extractFavoriteMeaning(row) {
+function extractFavoriteDetails(row) {
+  const details = {
+    meaning: "",
+    pronunciation: "",
+    exampleSentence: "",
+    exampleMeaning: "",
+    meaningFromDictionary: false,
+  };
+
   for (let index = 0; index < 12; index += 1) {
     const rawTuple = row[`resultTuple${index}`];
     if (!rawTuple) continue;
@@ -155,6 +171,14 @@ function extractFavoriteMeaning(row) {
       const result = tuple.result;
       if (!result || typeof result !== "object") continue;
 
+      if (!details.pronunciation) {
+        const phonetics = Array.isArray(result.toDict?.phonetics)
+          ? result.toDict.phonetics
+          : [];
+        const phonetic = phonetics.find((item) => cleanText(item?.value, 300));
+        if (phonetic) details.pronunciation = cleanText(phonetic.value, 300);
+      }
+
       const parts = Array.isArray(result.toDict?.parts) ? result.toDict.parts : [];
       const dictionaryMeaning = parts
         .map((part) => {
@@ -164,18 +188,49 @@ function extractFavoriteMeaning(row) {
         })
         .filter(Boolean)
         .join("\n");
-      if (dictionaryMeaning) return cleanText(dictionaryMeaning, 4000);
+      if (dictionaryMeaning && !details.meaningFromDictionary) {
+        details.meaning = cleanText(dictionaryMeaning, 4000);
+        details.meaningFromDictionary = true;
+      }
+
+      if (!details.exampleSentence || !details.exampleMeaning) {
+        const additions = Array.isArray(result.toDict?.additions)
+          ? result.toDict.additions
+          : [];
+        const examples = additions
+          .filter((addition) => /^例句\d*$/.test(addition?.name || ""))
+          .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+        for (const example of examples) {
+          if (typeof example.value !== "string") continue;
+          const lines = example.value
+            .split(/\r?\n|\\n/)
+            .map((line) => line.trim())
+            .filter(Boolean);
+          const englishLine = lines.find(
+            (line) => /[A-Za-z]/.test(line) && !/[\u3400-\u9fff]/.test(line),
+          );
+          const translatedLine = lines.find((line) => /[\u3400-\u9fff]/.test(line));
+          if (englishLine && translatedLine) {
+            details.exampleSentence = cleanText(englishLine, 6000);
+            details.exampleMeaning = cleanText(translatedLine, 4000);
+            break;
+          }
+        }
+      }
 
       const paragraphs = Array.isArray(result.toParagraphs)
         ? result.toParagraphs.filter((paragraph) => typeof paragraph === "string")
         : [];
       const translatedText = paragraphs.join("\n").trim();
-      if (translatedText) return cleanText(translatedText, 4000);
+      if (!details.meaning && translatedText) {
+        details.meaning = cleanText(translatedText, 4000);
+      }
     } catch {
       // A broken result from one service should not hide other valid translations.
     }
   }
-  return "";
+  return details;
 }
 
 async function readFavoriteCursor() {
@@ -233,12 +288,25 @@ async function pollBobFavorites() {
     for (const row of rows) {
       const expression = cleanText(row.queryText, 400);
       if (expression) {
+        const details = extractFavoriteDetails(row);
+        const readyForReview = Boolean(
+          details.meaning && details.exampleSentence && details.exampleMeaning,
+        );
         await enqueueCard({
           expression,
-          meaning: extractFavoriteMeaning(row),
-          originalLine: "",
+          pronunciation: details.pronunciation,
+          meaning: details.meaning,
+          originalLine: details.exampleSentence,
+          sceneContext: details.exampleMeaning
+            ? `例句含义：${details.exampleMeaning}`
+            : "",
+          memoryHook: readyForReview
+            ? `把 ${expression} 和这句例句一起回忆，不要只背一个中文释义。`
+            : "",
           source: "Bob 收藏",
           tags: ["Bob", "favorite"],
+          needsEditing: !readyForReview,
+          minimumClientSchema: 2,
         });
       }
       favoriteWatcher.lastFavoriteId = Number(row.localId);
@@ -277,7 +345,8 @@ function isAllowedBrowserRequest(request) {
   return !origin || allowedOrigins.has(origin);
 }
 
-async function handleApi(request, response, pathname) {
+async function handleApi(request, response, url) {
+  const { pathname } = url;
   if (!isAllowedBrowserRequest(request)) {
     sendJson(response, 403, { error: "This local API only accepts SceneCards requests." });
     return;
@@ -296,7 +365,11 @@ async function handleApi(request, response, pathname) {
   }
 
   if (request.method === "GET" && pathname === "/api/inbox") {
-    sendJson(response, 200, { cards: await readInbox() });
+    const clientSchema = Number(url.searchParams.get("schema") || 1);
+    const cards = (await readInbox()).filter(
+      (card) => (card.minimumClientSchema || 1) <= clientSchema,
+    );
+    sendJson(response, 200, { cards });
     return;
   }
 
@@ -354,7 +427,7 @@ const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url, `http://${request.headers.host || `${host}:${port}`}`);
     if (url.pathname.startsWith("/api/")) {
-      await handleApi(request, response, url.pathname);
+      await handleApi(request, response, url);
     } else if (request.method === "GET" || request.method === "HEAD") {
       await serveStatic(response, url.pathname);
     } else {
