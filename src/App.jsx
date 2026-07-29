@@ -8,6 +8,7 @@ import Download from "lucide-react/dist/esm/icons/download.js";
 import Edit3 from "lucide-react/dist/esm/icons/edit-3.js";
 import Eye from "lucide-react/dist/esm/icons/eye.js";
 import Flame from "lucide-react/dist/esm/icons/flame.js";
+import Inbox from "lucide-react/dist/esm/icons/inbox.js";
 import Library from "lucide-react/dist/esm/icons/library.js";
 import Plus from "lucide-react/dist/esm/icons/plus.js";
 import Search from "lucide-react/dist/esm/icons/search.js";
@@ -81,6 +82,43 @@ const emptyForm = {
   source: "",
   tags: "",
 };
+
+function isDraft(card) {
+  return card.status === "draft";
+}
+
+function captureKey(card) {
+  const expression = (card.expression || "").trim().replace(/\s+/g, " ").toLowerCase();
+  const originalLine = (card.originalLine || "").trim().replace(/\s+/g, " ").toLowerCase();
+  return `${expression}\u0000${originalLine}`;
+}
+
+function captureToCard(capture) {
+  const now = capture.createdAt || new Date().toISOString();
+  const meaning = (capture.meaning || "").trim();
+  return {
+    id: `bob-${capture.id}`,
+    captureId: capture.id,
+    status: meaning ? "active" : "draft",
+    expression: capture.expression.trim(),
+    pronunciation: "",
+    meaning,
+    originalLine: capture.originalLine || "",
+    sceneContext: "",
+    personalExample: "",
+    memoryHook: "",
+    source: capture.source || "Bob",
+    tags: Array.from(new Set([...(capture.tags || []), "Bob"])),
+    createdAt: now,
+    updatedAt: now,
+    dueAt: now,
+    intervalDays: 0,
+    ease: 2.5,
+    repetitions: 0,
+    lapses: 0,
+    lastReviewedAt: null,
+  };
+}
 
 function mergeBundledCards(data) {
   const cards = Array.isArray(data.cards) ? data.cards : [];
@@ -236,29 +274,107 @@ function App() {
   }, []);
 
   useEffect(() => {
+    let disposed = false;
+    let syncing = false;
+
+    async function syncBobInbox() {
+      if (syncing) return;
+      syncing = true;
+      try {
+        const response = await fetch("/api/inbox", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.json();
+        const captures = Array.isArray(payload.cards) ? payload.cards : [];
+        if (!captures.length || disposed) return;
+
+        setStore((previous) => {
+          const cards = [...previous.cards];
+          let changed = false;
+
+          for (const capture of captures) {
+            const incoming = captureToCard(capture);
+            const existingIndex = cards.findIndex(
+              (card) =>
+                card.captureId === incoming.captureId ||
+                captureKey(card) === captureKey(incoming),
+            );
+
+            if (existingIndex === -1) {
+              cards.unshift(incoming);
+              changed = true;
+            } else if (isDraft(cards[existingIndex]) && incoming.meaning) {
+              cards[existingIndex] = {
+                ...cards[existingIndex],
+                meaning: incoming.meaning,
+                status: "active",
+                updatedAt: new Date().toISOString(),
+              };
+              changed = true;
+            }
+          }
+
+          if (!changed) return previous;
+          const nextStore = { ...previous, cards };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(nextStore));
+          return nextStore;
+        });
+
+        await fetch("/api/inbox/ack", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: captures.map((capture) => capture.id) }),
+        });
+        if (!disposed) setToast(`Bob 新送来 ${captures.length} 个表达`);
+      } catch {
+        // The app remains fully usable when its optional Bob bridge is offline.
+      } finally {
+        syncing = false;
+      }
+    }
+
+    syncBobInbox();
+    const interval = window.setInterval(syncBobInbox, 5_000);
+    window.addEventListener("focus", syncBobInbox);
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", syncBobInbox);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!toast) return undefined;
     const timeout = window.setTimeout(() => setToast(""), 2600);
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
+  const activeCards = useMemo(
+    () => store.cards.filter((card) => !isDraft(card)),
+    [store.cards],
+  );
+  const draftCards = useMemo(
+    () => store.cards.filter(isDraft),
+    [store.cards],
+  );
+
   const dueCards = useMemo(
     () =>
-      [...store.cards]
+      [...activeCards]
         .filter((card) => new Date(card.dueAt).getTime() <= now)
         .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt)),
-    [now, store.cards],
+    [activeCards, now],
   );
 
   const currentCard = dueCards[0] || null;
-  const matureCount = store.cards.filter((card) => card.intervalDays >= 21).length;
+  const matureCount = activeCards.filter((card) => card.intervalDays >= 21).length;
   const streak = calculateStreak(store.reviews);
-  const nextCard = [...store.cards]
+  const nextCard = [...activeCards]
     .filter((card) => new Date(card.dueAt).getTime() > now)
     .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt))[0];
 
   const visibleCards = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return [...store.cards]
+    return [...activeCards]
       .filter((card) => {
         if (filter === "due" && new Date(card.dueAt).getTime() > now) return false;
         if (filter === "learning" && card.intervalDays >= 21) return false;
@@ -276,7 +392,7 @@ function App() {
           .includes(needle);
       })
       .sort((a, b) => a.expression.localeCompare(b.expression));
-  }, [filter, now, query, store.cards]);
+  }, [activeCards, filter, now, query]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -369,17 +485,26 @@ function App() {
     if (!values.expression || !values.meaning) return;
 
     if (editingId) {
+      const wasDraft = store.cards.some(
+        (card) => card.id === editingId && isDraft(card),
+      );
       setStore((previous) => ({
         ...previous,
         cards: previous.cards.map((card) =>
-          card.id === editingId ? { ...card, ...values } : card,
+          card.id === editingId ? { ...card, ...values, status: "active" } : card,
         ),
       }));
-      setToast("卡片已更新");
+      if (wasDraft) {
+        setView("review");
+        setToast("已整理并加入今天的复习");
+      } else {
+        setToast("卡片已更新");
+      }
     } else {
       const card = {
         ...values,
         id: crypto.randomUUID(),
+        status: "active",
         createdAt: now,
         dueAt: now,
         intervalDays: 0,
@@ -511,6 +636,15 @@ function App() {
           <Library size={18} />
           全部卡片
         </button>
+        <button
+          className={view === "inbox" ? "active" : ""}
+          type="button"
+          onClick={() => setView("inbox")}
+        >
+          <Inbox size={18} />
+          Bob 收件箱
+          {draftCards.length > 0 && <span className="count-badge">{draftCards.length}</span>}
+        </button>
       </nav>
 
       <main>
@@ -529,7 +663,7 @@ function App() {
           </div>
           <div>
             <span className="stat-icon ink"><BookOpen size={18} /></span>
-            <p><strong>{store.cards.length}</strong><span>全部表达</span></p>
+            <p><strong>{activeCards.length}</strong><span>全部表达</span></p>
           </div>
         </section>
 
@@ -544,7 +678,7 @@ function App() {
             onSpeak={speak}
             onAdd={openNewCard}
           />
-        ) : (
+        ) : view === "library" ? (
           <LibraryView
             cards={visibleCards}
             query={query}
@@ -555,6 +689,12 @@ function App() {
             onDelete={deleteCard}
             onSpeak={speak}
             onAdd={openNewCard}
+          />
+        ) : (
+          <InboxView
+            cards={draftCards}
+            onEdit={openEditCard}
+            onDelete={deleteCard}
           />
         )}
       </main>
@@ -573,6 +713,46 @@ function App() {
         {toast}
       </div>
     </div>
+  );
+}
+
+function InboxView({ cards, onEdit, onDelete }) {
+  return (
+    <section className="inbox-view">
+      <div className="inbox-header">
+        <div><span>BOB INBOX</span><h1>待整理</h1></div>
+        <span>{cards.length} 张</span>
+      </div>
+
+      {cards.length ? (
+        <div className="inbox-list">
+          {cards.map((card) => (
+            <article className="inbox-row" key={card.id}>
+              <div className="inbox-copy">
+                <div>
+                  <h2>{card.expression}</h2>
+                  <span>{card.source || "Bob"}</span>
+                </div>
+                {card.originalLine && <p>{card.originalLine}</p>}
+              </div>
+              <div className="row-actions">
+                <button className="primary-button" type="button" onClick={() => onEdit(card)}>
+                  <Edit3 size={17} />补充含义
+                </button>
+                <IconButton label={`删除 ${card.expression}`} className="danger" onClick={() => onDelete(card)}>
+                  <Trash2 size={17} />
+                </IconButton>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-library">
+          <Inbox size={28} />
+          <p>Bob 收件箱是空的。</p>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -819,7 +999,7 @@ function CardModal({ form, editing, onChange, onClose, onSave }) {
             <label>
               <span>英语表达 *</span>
               <input
-                autoFocus
+                autoFocus={!editing || Boolean(form.meaning)}
                 required
                 value={form.expression}
                 onChange={(event) => update("expression", event.target.value)}
@@ -839,6 +1019,7 @@ function CardModal({ form, editing, onChange, onClose, onSave }) {
           <label>
             <span>这一幕里的含义 *</span>
             <textarea
+              autoFocus={editing && !form.meaning}
               required
               value={form.meaning}
               onChange={(event) => update("meaning", event.target.value)}

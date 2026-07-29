@@ -76,6 +76,7 @@ textarea:focus-visible {
 .queue-item,
 .library-toolbar,
 .library-header,
+.inbox-header,
 .word-cell,
 .row-actions,
 .modal-header,
@@ -616,6 +617,86 @@ main {
   border-radius: 6px;
 }
 
+.inbox-view {
+  min-height: 420px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.inbox-header {
+  justify-content: space-between;
+  padding: 24px 22px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.inbox-header div > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.inbox-header h1 {
+  margin: 4px 0 0;
+  font-size: 22px;
+}
+
+.inbox-header > span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.inbox-list {
+  display: grid;
+}
+
+.inbox-row {
+  min-height: 108px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: center;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.inbox-row:last-child {
+  border-bottom: 0;
+}
+
+.inbox-copy {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.inbox-copy > div {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.inbox-copy h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 24px;
+}
+
+.inbox-copy span,
+.inbox-copy p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.inbox-copy p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .library-toolbar {
   justify-content: space-between;
   gap: 18px;
@@ -927,6 +1008,10 @@ main {
     grid-template-columns: minmax(160px, 0.8fr) minmax(240px, 1.4fr) 82px;
   }
 
+  .inbox-row {
+    align-items: start;
+  }
+
   .status-cell {
     display: none;
   }
@@ -1017,6 +1102,20 @@ main {
 
   .library-header {
     padding: 20px 16px 12px;
+  }
+
+  .inbox-header {
+    padding: 20px 16px 14px;
+  }
+
+  .inbox-row {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .inbox-row .row-actions {
+    justify-content: flex-start;
   }
 
   .library-row {

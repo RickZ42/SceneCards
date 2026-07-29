@@ -1,0 +1,55 @@
+{
+  "identifier": "com.rick.scenecards",
+  "version": "0.1.0",
+  "category": "translate",
+  "name": "SceneCards 收词",
+  "summary": "把 Bob 查到的英文送进本机 SceneCards 闪卡",
+  "author": "Rick",
+  "minBobVersion": "1.20.0",
+  "options": [
+    {
+      "identifier": "endpoint",
+      "type": "text",
+      "title": "SceneCards 地址",
+      "defaultValue": "http://127.0.0.1:5173/api/cards",
+      "textConfig": {
+        "type": "visible",
+        "placeholderText": "http://127.0.0.1:5173/api/cards"
+      }
+    },
+    {
+      "identifier": "captureMode",
+      "type": "menu",
+      "title": "自动收录范围",
+      "defaultValue": "short",
+      "menuValues": [
+        {
+          "title": "只收录英文单词和短语",
+          "value": "short"
+        },
+        {
+          "title": "收录每一次查询",
+          "value": "all"
+        },
+        {
+          "title": "只收录带标记的查询",
+          "value": "marker"
+        }
+      ]
+    },
+    {
+      "identifier": "marker",
+      "type": "text",
+      "title": "手动添加标记",
+      "defaultValue": "+sc",
+      "desc": "选择“只收录带标记的查询”时，在输入末尾加上此标记。"
+    },
+    {
+      "identifier": "separator",
+      "type": "text",
+      "title": "字段分隔符",
+      "defaultValue": "||",
+      "desc": "可输入：单词 || 中文含义 || 英文原句"
+    }
+  ]
+}

@@ -7,8 +7,11 @@
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build": "vite build",
     "prestart": "vite build",
-    "start": "vite preview --host 127.0.0.1 --port 5173 --strictPort",
-    "preview": "vite preview"
+    "start": "node server.mjs",
+    "preview": "vite preview",
+    "plugin:pack": "sh bob-plugin/pack.sh",
+    "service:install": "sh scripts/install-macos-service.sh",
+    "service:uninstall": "sh scripts/uninstall-macos-service.sh"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

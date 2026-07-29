@@ -3,3 +3,4 @@ dist/
 .DS_Store
 output/
 .playwright-cli/
+data/*.json
