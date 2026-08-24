@@ -177,6 +177,115 @@ function captureToCard(capture) {
   };
 }
 
+function reconcileCapturedCards(previous, captures, deletedCaptureIds = new Set()) {
+  const removedCardIds = new Set(
+    previous.cards
+      .filter((card) =>
+        deletedCaptureIds.has(card.captureId) ||
+        (card.captureIds || []).some((id) => deletedCaptureIds.has(id)),
+      )
+      .map((card) => card.id),
+  );
+  const cards = previous.cards.filter((card) => !removedCardIds.has(card.id));
+  const previousDismissed = new Set(previous.dismissedCaptureIds || []);
+  const dismissed = new Set([...previousDismissed, ...deletedCaptureIds]);
+  const processedCaptureRevisions = {
+    ...(previous.processedCaptureRevisions || {}),
+  };
+  let changed = removedCardIds.size > 0 || dismissed.size !== previousDismissed.size;
+
+  for (const capture of captures) {
+    const revision = capture.contentRevision || 1;
+    if ((processedCaptureRevisions[capture.id] || 0) >= revision) continue;
+    processedCaptureRevisions[capture.id] = revision;
+    changed = true;
+    if (dismissed.has(capture.id)) continue;
+    const incoming = captureToCard(capture);
+    const existingIndex = cards.findIndex(
+      (card) =>
+        card.captureId === incoming.captureId ||
+        captureKey(card) === captureKey(incoming) ||
+        (card.source === "Bob 收藏" &&
+          incoming.source === "Bob 收藏" &&
+          captureExpressionKey(card) === captureExpressionKey(incoming)),
+    );
+
+    if (existingIndex === -1) {
+      cards.unshift(incoming);
+      continue;
+    }
+
+    const existing = cards[existingIndex];
+    const captureIds = Array.from(new Set([
+      ...(existing.captureIds || []),
+      existing.captureId,
+      ...incoming.captureIds,
+    ].filter(Boolean)));
+    const refreshesCapture =
+      !existing.userEdited &&
+      incoming.captureContentRevision > (existing.captureContentRevision || 0);
+    const enrichment = {
+      pronunciation: refreshesCapture
+        ? incoming.pronunciation
+        : existing.pronunciation || incoming.pronunciation,
+      difficulty: existing.difficulty || incoming.difficulty,
+      meaning: refreshesCapture ? incoming.meaning : existing.meaning || incoming.meaning,
+      originalLine: refreshesCapture
+        ? incoming.originalLine
+        : existing.originalLine || incoming.originalLine,
+      sceneContext: refreshesCapture
+        ? incoming.sceneContext
+        : existing.sceneContext || incoming.sceneContext,
+      personalExample: refreshesCapture
+        ? incoming.personalExample
+        : existing.personalExample || incoming.personalExample,
+      exampleMeaning: refreshesCapture
+        ? incoming.exampleMeaning
+        : existing.exampleMeaning || incoming.exampleMeaning,
+      memoryHook: refreshesCapture
+        ? incoming.memoryHook || existing.memoryHook
+        : existing.memoryHook || incoming.memoryHook,
+    };
+    const addsContext = Object.entries(enrichment).some(
+      ([field, value]) => !existing[field] && Boolean(value),
+    );
+    const activatesDraft = isDraft(existing) && !isDraft(incoming);
+    const addsCapture = captureIds.length !== (existing.captureIds || []).length;
+    if (addsContext || activatesDraft || addsCapture || refreshesCapture) {
+      cards[existingIndex] = {
+        ...existing,
+        ...enrichment,
+        captureId: incoming.captureId,
+        captureIds,
+        captureContentRevision: Math.max(
+          existing.captureContentRevision || 0,
+          incoming.captureContentRevision,
+        ),
+        status: refreshesCapture
+          ? incoming.status
+          : activatesDraft
+            ? "active"
+            : existing.status,
+        needsTarget: refreshesCapture ? incoming.needsTarget : existing.needsTarget,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+  }
+
+  if (!changed) return previous;
+  const nextStore = {
+    ...previous,
+    cards,
+    reviews: (previous.reviews || []).filter(
+      (review) => !removedCardIds.has(review.cardId),
+    ),
+    dismissedCaptureIds: [...dismissed],
+    processedCaptureRevisions,
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(nextStore));
+  return nextStore;
+}
+
 function migrateCard(card) {
   let migrated = {
     ...card,
@@ -460,6 +569,38 @@ function App() {
   }, []);
 
   useEffect(() => {
+    let disposed = false;
+    let syncing = false;
+
+    async function syncPublishedCards() {
+      if (!navigator.onLine || syncing) return;
+      syncing = true;
+      try {
+        const libraryUrl = `${import.meta.env.BASE_URL}data/cards.json`;
+        const response = await fetch(libraryUrl, { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.json();
+        const captures = Array.isArray(payload.cards) ? payload.cards : [];
+        if (!captures.length || disposed) return;
+        setStore((previous) => reconcileCapturedCards(previous, captures));
+      } catch {
+        // Keep the installed app usable offline with its last local copy.
+      } finally {
+        syncing = false;
+      }
+    }
+
+    syncPublishedCards();
+    window.addEventListener("focus", syncPublishedCards);
+    window.addEventListener("online", syncPublishedCards);
+    return () => {
+      disposed = true;
+      window.removeEventListener("focus", syncPublishedCards);
+      window.removeEventListener("online", syncPublishedCards);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!hasLocalMacBridge()) return undefined;
 
     let disposed = false;
@@ -478,115 +619,9 @@ function App() {
         );
         if ((!captures.length && !deletedCaptureIds.size) || disposed) return;
 
-        setStore((previous) => {
-          const removedCardIds = new Set(
-            previous.cards
-              .filter((card) =>
-                deletedCaptureIds.has(card.captureId) ||
-                (card.captureIds || []).some((id) => deletedCaptureIds.has(id)),
-              )
-              .map((card) => card.id),
-          );
-          const cards = previous.cards.filter((card) => !removedCardIds.has(card.id));
-          const previousDismissed = new Set(previous.dismissedCaptureIds || []);
-          const dismissed = new Set([...previousDismissed, ...deletedCaptureIds]);
-          const processedCaptureRevisions = {
-            ...(previous.processedCaptureRevisions || {}),
-          };
-          let changed = removedCardIds.size > 0 || dismissed.size !== previousDismissed.size;
-
-          for (const capture of captures) {
-            const revision = capture.contentRevision || 1;
-            if ((processedCaptureRevisions[capture.id] || 0) >= revision) continue;
-            processedCaptureRevisions[capture.id] = revision;
-            changed = true;
-            if (dismissed.has(capture.id)) continue;
-            const incoming = captureToCard(capture);
-            const existingIndex = cards.findIndex(
-              (card) =>
-                card.captureId === incoming.captureId ||
-                captureKey(card) === captureKey(incoming) ||
-                (card.source === "Bob 收藏" &&
-                  incoming.source === "Bob 收藏" &&
-                  captureExpressionKey(card) === captureExpressionKey(incoming)),
-            );
-
-            if (existingIndex === -1) {
-              cards.unshift(incoming);
-              changed = true;
-            } else {
-              const existing = cards[existingIndex];
-              const captureIds = Array.from(new Set([
-                ...(existing.captureIds || []),
-                existing.captureId,
-                ...incoming.captureIds,
-              ].filter(Boolean)));
-              const refreshesCapture =
-                !existing.userEdited &&
-                incoming.captureContentRevision > (existing.captureContentRevision || 0);
-              const enrichment = {
-                pronunciation: refreshesCapture
-                  ? incoming.pronunciation
-                  : existing.pronunciation || incoming.pronunciation,
-                difficulty: existing.difficulty || incoming.difficulty,
-                meaning: refreshesCapture ? incoming.meaning : existing.meaning || incoming.meaning,
-                originalLine: refreshesCapture
-                  ? incoming.originalLine
-                  : existing.originalLine || incoming.originalLine,
-                sceneContext: refreshesCapture
-                  ? incoming.sceneContext
-                  : existing.sceneContext || incoming.sceneContext,
-                personalExample: refreshesCapture
-                  ? incoming.personalExample
-                  : existing.personalExample || incoming.personalExample,
-                exampleMeaning: refreshesCapture
-                  ? incoming.exampleMeaning
-                  : existing.exampleMeaning || incoming.exampleMeaning,
-                memoryHook: refreshesCapture
-                  ? incoming.memoryHook || existing.memoryHook
-                  : existing.memoryHook || incoming.memoryHook,
-              };
-              const addsContext = Object.entries(enrichment).some(
-                ([field, value]) => !existing[field] && Boolean(value),
-              );
-              const activatesDraft = isDraft(existing) && !isDraft(incoming);
-              const addsCapture = captureIds.length !== (existing.captureIds || []).length;
-              if (addsContext || activatesDraft || addsCapture || refreshesCapture) {
-                cards[existingIndex] = {
-                  ...existing,
-                  ...enrichment,
-                  captureId: incoming.captureId,
-                  captureIds,
-                  captureContentRevision: Math.max(
-                    existing.captureContentRevision || 0,
-                    incoming.captureContentRevision,
-                  ),
-                  status: refreshesCapture
-                    ? incoming.status
-                    : activatesDraft
-                      ? "active"
-                      : existing.status,
-                  needsTarget: refreshesCapture ? incoming.needsTarget : existing.needsTarget,
-                  updatedAt: new Date().toISOString(),
-                };
-                changed = true;
-              }
-            }
-          }
-
-          if (!changed) return previous;
-          const nextStore = {
-            ...previous,
-            cards,
-            reviews: (previous.reviews || []).filter(
-              (review) => !removedCardIds.has(review.cardId),
-            ),
-            dismissedCaptureIds: [...dismissed],
-            processedCaptureRevisions,
-          };
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(nextStore));
-          return nextStore;
-        });
+        setStore((previous) =>
+          reconcileCapturedCards(previous, captures, deletedCaptureIds),
+        );
 
         await fetch("/api/inbox/ack", {
           method: "POST",

@@ -38,6 +38,13 @@ The app stores cards and review history in the current browser's local storage.
 Use the download button in the header to create a portable JSON backup, and the
 upload button to restore one.
 
+The public card library is stored in `public/data/cards.json` and is deployed
+with GitHub Pages. The app checks this library when it opens, regains focus, or
+comes back online. Published card-content revisions are merged into each
+browser, while review history, scheduling, dismissals, and user-edited card
+content remain local to that browser. The public library must never contain
+tokens, credentials, or private review data.
+
 Speaker buttons play audio generated locally by the Mac's built-in British
 English voice. Generated WAV files are cached under the SceneCards data folder;
 card text is not sent to an external speech service.
