@@ -17,6 +17,15 @@ import Trash2 from "lucide-react/dist/esm/icons/trash-2.js";
 import Upload from "lucide-react/dist/esm/icons/upload.js";
 import Volume2 from "lucide-react/dist/esm/icons/volume-2.js";
 import X from "lucide-react/dist/esm/icons/x.js";
+import {
+  createAutomaticMemoryHook,
+  enrichCardsWithAutomaticMemoryHooks,
+  MEMORY_REVIEW_THRESHOLD,
+} from "./memoryHooks.js";
+import {
+  compareReviewQueueCards,
+  moveCardToReviewQueueEnd,
+} from "./reviewQueue.js";
 
 const STORAGE_KEY = "scenecards.data.v1";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -234,6 +243,7 @@ function migrateCard(card) {
 
 function mergeBundledCards(data) {
   const cards = Array.isArray(data.cards) ? data.cards.map(migrateCard) : [];
+  const reviews = Array.isArray(data.reviews) ? data.reviews : [];
   const bundledIds = new Set(bundledCards.map((card) => card.id));
   const installedSeeds = new Set(
     Array.isArray(data.installedSeeds)
@@ -252,8 +262,8 @@ function mergeBundledCards(data) {
   );
 
   return {
-    cards: [...additions, ...cards],
-    reviews: Array.isArray(data.reviews) ? data.reviews : [],
+    cards: enrichCardsWithAutomaticMemoryHooks([...additions, ...cards], reviews),
+    reviews,
     installedSeeds: [...bundledIds],
     dismissedCaptureIds: Array.isArray(data.dismissedCaptureIds)
       ? data.dismissedCaptureIds
@@ -375,12 +385,7 @@ function scheduleCard(card, rating) {
     intervalDays = 0;
     ease = Math.max(1.3, ease - 0.2);
     lapses += 1;
-    dueAt = new Date(now.getTime() + 10 * 60 * 1000);
-  } else if (rating === "hard") {
-    repetitions += 1;
-    intervalDays = Math.max(1, Math.round((intervalDays || 1) * 1.2));
-    ease = Math.max(1.3, ease - 0.15);
-    dueAt = new Date(now.getTime() + intervalDays * DAY_MS);
+    dueAt = now;
   } else if (rating === "good") {
     repetitions += 1;
     if (repetitions === 1) intervalDays = 1;
@@ -538,7 +543,7 @@ function App() {
                   ? incoming.exampleMeaning
                   : existing.exampleMeaning || incoming.exampleMeaning,
                 memoryHook: refreshesCapture
-                  ? incoming.memoryHook
+                  ? incoming.memoryHook || existing.memoryHook
                   : existing.memoryHook || incoming.memoryHook,
               };
               const addsContext = Object.entries(enrichment).some(
@@ -631,7 +636,7 @@ function App() {
     () =>
       [...activeCards]
         .filter((card) => new Date(card.dueAt).getTime() <= now)
-        .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt)),
+        .sort(compareReviewQueueCards),
     [activeCards, now],
   );
 
@@ -674,8 +679,8 @@ function App() {
         event.preventDefault();
         revealAnswer();
       }
-      if (revealed && ["1", "2", "3", "4"].includes(event.key)) {
-        const ratings = { 1: "again", 2: "hard", 3: "good", 4: "easy" };
+      if (revealed && ["1", "2", "3"].includes(event.key)) {
+        const ratings = { 1: "again", 2: "good", 3: "easy" };
         rateCard(ratings[event.key]);
       }
     }
@@ -742,22 +747,49 @@ function App() {
     window.speechSynthesis?.cancel();
     audioRef.current?.pause();
     audioRef.current = null;
-    const reviewed = scheduleCard(currentCard, rating);
+    let reviewed = scheduleCard(currentCard, rating);
+    if (rating === "again") {
+      reviewed = moveCardToReviewQueueEnd(reviewed, dueCards, now);
+    } else {
+      reviewed = { ...reviewed, reviewQueueOrder: undefined };
+    }
     const review = {
       id: createId(),
       cardId: currentCard.id,
       rating,
       at: new Date().toISOString(),
     };
+    const reviewCount =
+      store.reviews.filter((item) => item.cardId === currentCard.id).length + 1;
+    const automaticMemoryHook =
+      reviewCount >= MEMORY_REVIEW_THRESHOLD && !(reviewed.memoryHook || "").trim()
+        ? createAutomaticMemoryHook(reviewed)
+        : "";
+    const reviewedCard = automaticMemoryHook
+      ? {
+          ...reviewed,
+          memoryHook: automaticMemoryHook,
+          memoryHookSource: "automatic",
+          memoryHookReviewCount: reviewCount,
+        }
+      : reviewed;
     setStore((previous) => ({
       ...previous,
       cards: previous.cards.map((card) =>
-        card.id === currentCard.id ? reviewed : card,
+        card.id === currentCard.id ? reviewedCard : card,
       ),
       reviews: [...previous.reviews, review],
     }));
     setRevealed(false);
-    setToast(`下次复习：${formatDue(reviewed.dueAt)}`);
+    const reviewMessage =
+      rating === "again"
+        ? "已加入本轮复习队列末尾"
+        : `下次复习：${formatDue(reviewed.dueAt)}`;
+    setToast(
+      automaticMemoryHook
+        ? `已增加联想记忆；${reviewMessage}`
+        : reviewMessage,
+    );
   }
 
   function openNewCard() {
@@ -798,6 +830,7 @@ function App() {
         .map((tag) => tag.trim())
         .filter(Boolean),
       updatedAt: now,
+      memoryHookSource: form.memoryHook.trim() ? "manual" : undefined,
     };
     if (!values.expression || !values.meaning) return;
     if (!values.personalExample.trim() || !values.exampleMeaning.trim()) {
@@ -1233,10 +1266,7 @@ function ReviewView({
 
         <div className={`rating-row ${revealed ? "visible" : ""}`}>
           <button className="rating again" type="button" onClick={() => onRate("again")}>
-            <strong>忘了</strong><span>10 分钟</span>
-          </button>
-          <button className="rating hard" type="button" onClick={() => onRate("hard")}>
-            <strong>吃力</strong><span>短间隔</span>
+            <strong>忘了</strong><span>队尾再练</span>
           </button>
           <button className="rating good" type="button" onClick={() => onRate("good")}>
             <strong>记得</strong><span>按进度</span>

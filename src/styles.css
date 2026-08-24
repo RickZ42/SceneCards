@@ -577,7 +577,7 @@ main {
 
 .rating-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-top: auto;
   padding-top: 24px;
@@ -605,7 +605,6 @@ main {
 .rating strong { font-size: 14px; }
 .rating span { color: var(--muted); font-size: 11px; }
 .rating.again:hover { color: var(--coral); border-color: var(--coral); background: var(--coral-soft); }
-.rating.hard:hover { color: var(--gold); border-color: var(--gold); background: var(--gold-soft); }
 .rating.good:hover { color: var(--teal); border-color: var(--teal); background: var(--teal-soft); }
 .rating.easy:hover { color: var(--blue); border-color: var(--blue); background: var(--blue-soft); }
 
@@ -1249,7 +1248,7 @@ main {
   }
 
   .rating-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .library-toolbar {

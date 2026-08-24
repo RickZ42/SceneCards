@@ -110,10 +110,16 @@ This installs a per-user macOS background service. Remove it with
 
 Each answer updates the next due time:
 
-- `Again`: 10 minutes and a lapse.
-- `Hard`: a short interval with a lower ease factor.
+- `Again`: records a lapse and immediately moves the card to the end of the
+  current review queue.
 - `Good`: 1 day, then 3 days, then adaptive intervals.
 - `Easy`: starts at 4 days and grows faster.
+
+After a card receives its third review rating, SceneCards adds a local memory
+cue when the card does not already have one. The cue combines a conservative
+word-form or word-family clue with the card's meaning and representative scene.
+Existing manual memory cues are never replaced, and no card content is sent to
+an AI or external service for this feature.
 
 The bundled `boomerang` card is created only when no existing local data is
 found.
