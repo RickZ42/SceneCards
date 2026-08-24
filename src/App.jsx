@@ -20,16 +20,42 @@ import X from "lucide-react/dist/esm/icons/x.js";
 
 const STORAGE_KEY = "scenecards.data.v1";
 const DAY_MS = 24 * 60 * 60 * 1000;
+const BUNDLED_CONTENT_REVISION = 3;
+const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
+
+function normalizeDifficulty(value) {
+  const level = (value || "").trim().toUpperCase();
+  return CEFR_LEVELS.includes(level) ? level : "";
+}
+
+function createId() {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  if (typeof globalThis.crypto?.getRandomValues === "function") {
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const value = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
+  }
+  return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
 
 const boomerangCard = {
   id: "sample-boomerang",
   expression: "boomerang",
   pronunciation: "/ˈbuː.mə.ræŋ/",
+  difficulty: "C2",
   meaning:
     "名词：回旋镖。动词：事情产生反效果，最后反过来影响发起者。",
   originalLine: "His plan could boomerang on him.",
   sceneContext: "一个计划的负面后果反过来伤害制定计划的人。",
-  personalExample: "If we push too hard, the plan may boomerang on us.",
+  personalExample:
+    "The company tried to silence the criticism, but the lawsuit boomeranged and drew even more attention to the story.",
+  exampleMeaning:
+    "公司本想用诉讼压下批评，结果却适得其反，反而让更多人关注这件事。",
   memoryHook: "扔出去的回旋镖又飞回来：行动的后果也回到自己身上。",
   source: "TV series",
   tags: ["TV series", "verb"],
@@ -41,12 +67,14 @@ const boomerangCard = {
   repetitions: 0,
   lapses: 0,
   lastReviewedAt: null,
+  contentRevision: BUNDLED_CONTENT_REVISION,
 };
 
 const exploitCard = {
   id: "research-exploit-thynnine-orchid",
   expression: "exploit",
   pronunciation: "/ɪkˈsplɔɪt/",
+  difficulty: "B2",
   meaning:
     "利用某种机制、弱点或机会，使自己获益；这里指性欺骗兰花利用 thynnine 蜂正常的配偶搜索机制完成授粉。",
   originalLine:
@@ -54,7 +82,9 @@ const exploitCard = {
   sceneContext:
     "科研论文语境：兰花借助或操纵传粉蜂正常寻找配偶的系统，达到自身的授粉目的。",
   personalExample:
-    "Some parasites exploit their hosts' behaviour to complete their life cycle.",
+    "Sexually deceptive orchids exploit a male wasp's search for a mate by imitating the scent of a female.",
+  exampleMeaning:
+    "性欺骗兰花模仿雌蜂的气味，利用雄蜂寻找配偶的行为来完成授粉。",
   memoryHook:
     "exploit = use something to your own advantage；比 use 更强调借力、占便宜或操纵。",
   source: "Research paper - thynnine wasp pollination",
@@ -67,6 +97,7 @@ const exploitCard = {
   repetitions: 0,
   lapses: 0,
   lastReviewedAt: null,
+  contentRevision: BUNDLED_CONTENT_REVISION,
 };
 
 const bundledCards = [boomerangCard, exploitCard];
@@ -74,10 +105,12 @@ const bundledCards = [boomerangCard, exploitCard];
 const emptyForm = {
   expression: "",
   pronunciation: "",
+  difficulty: "",
   meaning: "",
   originalLine: "",
   sceneContext: "",
   personalExample: "",
+  exampleMeaning: "",
   memoryHook: "",
   source: "",
   tags: "",
@@ -85,6 +118,12 @@ const emptyForm = {
 
 function isDraft(card) {
   return card.status === "draft";
+}
+
+function looksLikeSentence(value) {
+  const text = (value || "").trim();
+  const words = text.split(/\s+/).filter(Boolean);
+  return words.length >= 6 || (words.length >= 3 && /[.!?]["')\]]?$/.test(text));
 }
 
 function captureKey(card) {
@@ -103,16 +142,21 @@ function captureToCard(capture) {
   return {
     id: `bob-${capture.id}`,
     captureId: capture.id,
+    captureIds: [capture.id],
+    captureContentRevision: capture.contentRevision || 1,
     status: meaning && !capture.needsEditing ? "active" : "draft",
     expression: capture.expression.trim(),
     pronunciation: capture.pronunciation || "",
+    difficulty: normalizeDifficulty(capture.difficulty),
     meaning,
     originalLine: capture.originalLine || "",
     sceneContext: capture.sceneContext || "",
     personalExample: capture.personalExample || "",
+    exampleMeaning: capture.exampleMeaning || "",
     memoryHook: capture.memoryHook || "",
     source: capture.source || "Bob",
     tags: Array.from(new Set([...(capture.tags || []), "Bob"])),
+    needsTarget: Boolean(capture.needsTarget),
     createdAt: now,
     updatedAt: now,
     dueAt: now,
@@ -124,8 +168,72 @@ function captureToCard(capture) {
   };
 }
 
+function migrateCard(card) {
+  let migrated = {
+    ...card,
+    difficulty: normalizeDifficulty(card.difficulty),
+    exampleMeaning: card.exampleMeaning || "",
+    captureIds: Array.from(new Set([
+      ...(card.captureIds || []),
+      card.captureId,
+    ].filter(Boolean))),
+  };
+
+  if (
+    migrated.source === "Bob 收藏" &&
+    isDraft(migrated) &&
+    looksLikeSentence(migrated.expression)
+  ) {
+    migrated = {
+      ...migrated,
+      needsTarget: true,
+      originalLine: migrated.originalLine || migrated.expression,
+      sceneContext: migrated.sceneContext || migrated.meaning || "",
+      meaning: "",
+      personalExample: "",
+      exampleMeaning: "",
+    };
+  }
+
+  if (
+    migrated.source === "Bob 收藏" &&
+    !migrated.personalExample &&
+    !migrated.exampleMeaning &&
+    migrated.originalLine &&
+    /^例句含义：/.test(migrated.sceneContext || "")
+  ) {
+    migrated = {
+      ...migrated,
+      personalExample: migrated.originalLine,
+      exampleMeaning: migrated.sceneContext.replace(/^例句含义：\s*/, ""),
+      originalLine: "",
+      sceneContext: "",
+    };
+  }
+
+  if (/^把 .+ 和这句例句一起回忆，不要只背一个中文释义。$/.test(migrated.memoryHook || "")) {
+    migrated.memoryHook = "";
+  }
+
+  const bundled = bundledCards.find((candidate) => candidate.id === migrated.id);
+  if (bundled && (migrated.contentRevision || 0) < BUNDLED_CONTENT_REVISION) {
+    migrated = {
+      ...migrated,
+      originalLine: bundled.originalLine,
+      sceneContext: bundled.sceneContext,
+      personalExample: bundled.personalExample,
+      exampleMeaning: bundled.exampleMeaning,
+      memoryHook: bundled.memoryHook,
+      difficulty: bundled.difficulty,
+      contentRevision: BUNDLED_CONTENT_REVISION,
+    };
+  }
+
+  return migrated;
+}
+
 function mergeBundledCards(data) {
-  const cards = Array.isArray(data.cards) ? data.cards : [];
+  const cards = Array.isArray(data.cards) ? data.cards.map(migrateCard) : [];
   const bundledIds = new Set(bundledCards.map((card) => card.id));
   const installedSeeds = new Set(
     Array.isArray(data.installedSeeds)
@@ -147,6 +255,52 @@ function mergeBundledCards(data) {
     cards: [...additions, ...cards],
     reviews: Array.isArray(data.reviews) ? data.reviews : [],
     installedSeeds: [...bundledIds],
+    dismissedCaptureIds: Array.isArray(data.dismissedCaptureIds)
+      ? data.dismissedCaptureIds
+      : [],
+    processedCaptureRevisions:
+      data.processedCaptureRevisions && typeof data.processedCaptureRevisions === "object"
+        ? data.processedCaptureRevisions
+        : {},
+  };
+}
+
+function createCloze(sentence, expression) {
+  const source = (sentence || "").trim();
+  const target = (expression || "").trim();
+  if (!source || !target) return null;
+
+  const targets = [target];
+  if (!/\s/.test(target) && target.length > 3 && /s$/i.test(target)) {
+    targets.push(target.slice(0, -1));
+  }
+  const lowerSource = source.toLocaleLowerCase();
+  let matchedTarget = "";
+  let index = -1;
+  for (const candidate of targets) {
+    const candidateIndex = lowerSource.indexOf(candidate.toLocaleLowerCase());
+    if (candidateIndex < 0) continue;
+    const before = source[candidateIndex - 1] || "";
+    const after = source[candidateIndex + candidate.length] || "";
+    if (!/[A-Za-z'-]/.test(before) && !/[A-Za-z'-]/.test(after)) {
+      matchedTarget = candidate;
+      index = candidateIndex;
+      break;
+    }
+  }
+  if (!matchedTarget) return null;
+
+  let start = index;
+  let end = index + matchedTarget.length;
+  if (!/\s/.test(matchedTarget)) {
+    while (start > 0 && /[A-Za-z'-]/.test(source[start - 1])) start -= 1;
+    while (end < source.length && /[A-Za-z'-]/.test(source[end])) end += 1;
+  }
+
+  return {
+    before: source.slice(0, start),
+    answer: source.slice(start, end),
+    after: source.slice(end),
   };
 }
 
@@ -168,6 +322,19 @@ function localDateKey(value = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function hasLocalMacBridge() {
+  const { hostname, protocol } = window.location;
+  if (protocol !== "http:") return false;
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.endsWith(".local") ||
+    /^10\./.test(hostname) ||
+    /^192\.168\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+  );
 }
 
 function formatDue(value) {
@@ -255,6 +422,15 @@ function IconButton({ label, children, className = "", ...props }) {
   );
 }
 
+function DifficultyBadge({ level }) {
+  const difficulty = normalizeDifficulty(level);
+  return (
+    <span className={`difficulty-badge ${difficulty ? `level-${difficulty.toLowerCase()}` : "ungraded"}`}>
+      {difficulty || "未分级"}
+    </span>
+  );
+}
+
 function App() {
   const [store, setStore] = useState(loadStore);
   const [view, setView] = useState("review");
@@ -267,6 +443,7 @@ function App() {
   const [toast, setToast] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const importRef = useRef(null);
+  const audioRef = useRef(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
@@ -278,24 +455,47 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!hasLocalMacBridge()) return undefined;
+
     let disposed = false;
     let syncing = false;
 
     async function syncBobInbox() {
-      if (syncing) return;
+      if (!navigator.onLine || syncing) return;
       syncing = true;
       try {
-        const response = await fetch("/api/inbox?schema=2", { cache: "no-store" });
+        const response = await fetch("/api/inbox?schema=3", { cache: "no-store" });
         if (!response.ok) return;
         const payload = await response.json();
         const captures = Array.isArray(payload.cards) ? payload.cards : [];
-        if (!captures.length || disposed) return;
+        const deletedCaptureIds = new Set(
+          Array.isArray(payload.deletedCaptureIds) ? payload.deletedCaptureIds : [],
+        );
+        if ((!captures.length && !deletedCaptureIds.size) || disposed) return;
 
         setStore((previous) => {
-          const cards = [...previous.cards];
-          let changed = false;
+          const removedCardIds = new Set(
+            previous.cards
+              .filter((card) =>
+                deletedCaptureIds.has(card.captureId) ||
+                (card.captureIds || []).some((id) => deletedCaptureIds.has(id)),
+              )
+              .map((card) => card.id),
+          );
+          const cards = previous.cards.filter((card) => !removedCardIds.has(card.id));
+          const previousDismissed = new Set(previous.dismissedCaptureIds || []);
+          const dismissed = new Set([...previousDismissed, ...deletedCaptureIds]);
+          const processedCaptureRevisions = {
+            ...(previous.processedCaptureRevisions || {}),
+          };
+          let changed = removedCardIds.size > 0 || dismissed.size !== previousDismissed.size;
 
           for (const capture of captures) {
+            const revision = capture.contentRevision || 1;
+            if ((processedCaptureRevisions[capture.id] || 0) >= revision) continue;
+            processedCaptureRevisions[capture.id] = revision;
+            changed = true;
+            if (dismissed.has(capture.id)) continue;
             const incoming = captureToCard(capture);
             const existingIndex = cards.findIndex(
               (card) =>
@@ -311,24 +511,57 @@ function App() {
               changed = true;
             } else {
               const existing = cards[existingIndex];
+              const captureIds = Array.from(new Set([
+                ...(existing.captureIds || []),
+                existing.captureId,
+                ...incoming.captureIds,
+              ].filter(Boolean)));
+              const refreshesCapture =
+                !existing.userEdited &&
+                incoming.captureContentRevision > (existing.captureContentRevision || 0);
               const enrichment = {
-                pronunciation: existing.pronunciation || incoming.pronunciation,
-                meaning: existing.meaning || incoming.meaning,
-                originalLine: existing.originalLine || incoming.originalLine,
-                sceneContext: existing.sceneContext || incoming.sceneContext,
-                personalExample: existing.personalExample || incoming.personalExample,
-                memoryHook: existing.memoryHook || incoming.memoryHook,
+                pronunciation: refreshesCapture
+                  ? incoming.pronunciation
+                  : existing.pronunciation || incoming.pronunciation,
+                difficulty: existing.difficulty || incoming.difficulty,
+                meaning: refreshesCapture ? incoming.meaning : existing.meaning || incoming.meaning,
+                originalLine: refreshesCapture
+                  ? incoming.originalLine
+                  : existing.originalLine || incoming.originalLine,
+                sceneContext: refreshesCapture
+                  ? incoming.sceneContext
+                  : existing.sceneContext || incoming.sceneContext,
+                personalExample: refreshesCapture
+                  ? incoming.personalExample
+                  : existing.personalExample || incoming.personalExample,
+                exampleMeaning: refreshesCapture
+                  ? incoming.exampleMeaning
+                  : existing.exampleMeaning || incoming.exampleMeaning,
+                memoryHook: refreshesCapture
+                  ? incoming.memoryHook
+                  : existing.memoryHook || incoming.memoryHook,
               };
               const addsContext = Object.entries(enrichment).some(
                 ([field, value]) => !existing[field] && Boolean(value),
               );
               const activatesDraft = isDraft(existing) && !isDraft(incoming);
-              if (addsContext || activatesDraft) {
+              const addsCapture = captureIds.length !== (existing.captureIds || []).length;
+              if (addsContext || activatesDraft || addsCapture || refreshesCapture) {
                 cards[existingIndex] = {
                   ...existing,
                   ...enrichment,
                   captureId: incoming.captureId,
-                  status: activatesDraft ? "active" : existing.status,
+                  captureIds,
+                  captureContentRevision: Math.max(
+                    existing.captureContentRevision || 0,
+                    incoming.captureContentRevision,
+                  ),
+                  status: refreshesCapture
+                    ? incoming.status
+                    : activatesDraft
+                      ? "active"
+                      : existing.status,
+                  needsTarget: refreshesCapture ? incoming.needsTarget : existing.needsTarget,
                   updatedAt: new Date().toISOString(),
                 };
                 changed = true;
@@ -337,7 +570,15 @@ function App() {
           }
 
           if (!changed) return previous;
-          const nextStore = { ...previous, cards };
+          const nextStore = {
+            ...previous,
+            cards,
+            reviews: (previous.reviews || []).filter(
+              (review) => !removedCardIds.has(review.cardId),
+            ),
+            dismissedCaptureIds: [...dismissed],
+            processedCaptureRevisions,
+          };
           localStorage.setItem(STORAGE_KEY, JSON.stringify(nextStore));
           return nextStore;
         });
@@ -347,7 +588,6 @@ function App() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ids: captures.map((capture) => capture.id) }),
         });
-        if (!disposed) setToast(`Bob 新送来 ${captures.length} 个表达`);
       } catch {
         // The app remains fully usable when its optional Bob bridge is offline.
       } finally {
@@ -358,10 +598,12 @@ function App() {
     syncBobInbox();
     const interval = window.setInterval(syncBobInbox, 5_000);
     window.addEventListener("focus", syncBobInbox);
+    window.addEventListener("online", syncBobInbox);
     return () => {
       disposed = true;
       window.clearInterval(interval);
       window.removeEventListener("focus", syncBobInbox);
+      window.removeEventListener("online", syncBobInbox);
     };
   }, []);
 
@@ -370,6 +612,11 @@ function App() {
     const timeout = window.setTimeout(() => setToast(""), 2600);
     return () => window.clearTimeout(timeout);
   }, [toast]);
+
+  useEffect(() => () => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+  }, []);
 
   const activeCards = useMemo(
     () => store.cards.filter((card) => !isDraft(card)),
@@ -405,8 +652,11 @@ function App() {
         if (!needle) return true;
         return [
           card.expression,
+          card.difficulty,
           card.meaning,
           card.originalLine,
+          card.personalExample,
+          card.exampleMeaning,
           card.source,
           ...(card.tags || []),
         ]
@@ -422,7 +672,7 @@ function App() {
       if (modalOpen || view !== "review" || !currentCard) return;
       if (event.code === "Space") {
         event.preventDefault();
-        setRevealed(true);
+        revealAnswer();
       }
       if (revealed && ["1", "2", "3", "4"].includes(event.key)) {
         const ratings = { 1: "again", 2: "hard", 3: "good", 4: "easy" };
@@ -434,27 +684,67 @@ function App() {
   });
 
   function speak(text) {
-    if (!("speechSynthesis" in window)) {
-      setToast("当前浏览器不支持语音播放");
+    const value = (text || "").trim();
+    if (!value) return;
+
+    window.speechSynthesis?.cancel();
+    audioRef.current?.pause();
+
+    let voiceStarted = false;
+    const useDeviceVoice = () => {
+      if (voiceStarted) return;
+      voiceStarted = true;
+      if (!("speechSynthesis" in window)) {
+        setToast("无法播放语音，请检查设备的声音设置");
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(value);
+      const voices = window.speechSynthesis.getVoices();
+      utterance.voice =
+        voices.find((voice) => voice.lang === "en-GB") ||
+        voices.find((voice) => voice.lang.startsWith("en")) ||
+        null;
+      utterance.lang = utterance.voice?.lang || "en-GB";
+      utterance.rate = 0.88;
+      utterance.onerror = () => setToast("无法播放语音，请检查设备的声音设置");
+      window.speechSynthesis.speak(utterance);
+    };
+
+    if (!hasLocalMacBridge()) {
+      useDeviceVoice();
       return;
     }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-    utterance.voice =
-      voices.find((voice) => voice.lang === "en-GB") ||
-      voices.find((voice) => voice.lang.startsWith("en")) ||
-      null;
-    utterance.lang = utterance.voice?.lang || "en-GB";
-    utterance.rate = 0.88;
-    window.speechSynthesis.speak(utterance);
+
+    const audio = new Audio(`/api/speech?text=${encodeURIComponent(value)}`);
+    audioRef.current = audio;
+
+    const useBrowserVoice = () => {
+      if (audioRef.current === audio) audioRef.current = null;
+      useDeviceVoice();
+    };
+
+    audio.addEventListener("error", useBrowserVoice, { once: true });
+    audio.addEventListener("ended", () => {
+      if (audioRef.current === audio) audioRef.current = null;
+    }, { once: true });
+    audio.play().catch(useBrowserVoice);
+  }
+
+  function revealAnswer() {
+    if (revealed || !currentCard) return;
+    setRevealed(true);
+    speak(currentCard.expression);
   }
 
   function rateCard(rating) {
     if (!currentCard) return;
+    window.speechSynthesis?.cancel();
+    audioRef.current?.pause();
+    audioRef.current = null;
     const reviewed = scheduleCard(currentCard, rating);
     const review = {
-      id: crypto.randomUUID(),
+      id: createId(),
       cardId: currentCard.id,
       rating,
       at: new Date().toISOString(),
@@ -477,14 +767,17 @@ function App() {
   }
 
   function openEditCard(card) {
+    const choosingTarget = Boolean(card.needsTarget);
     setEditingId(card.id);
     setForm({
-      expression: card.expression,
+      expression: choosingTarget ? "" : card.expression,
       pronunciation: card.pronunciation || "",
-      meaning: card.meaning,
-      originalLine: card.originalLine || "",
-      sceneContext: card.sceneContext || "",
+      difficulty: normalizeDifficulty(card.difficulty),
+      meaning: choosingTarget ? "" : card.meaning,
+      originalLine: card.originalLine || (choosingTarget ? card.expression : ""),
+      sceneContext: card.sceneContext || (choosingTarget ? card.meaning : "") || "",
       personalExample: card.personalExample || "",
+      exampleMeaning: card.exampleMeaning || "",
       memoryHook: card.memoryHook || "",
       source: card.source || "",
       tags: (card.tags || []).join(", "),
@@ -498,6 +791,7 @@ function App() {
     const values = {
       ...form,
       expression: form.expression.trim(),
+      difficulty: normalizeDifficulty(form.difficulty),
       meaning: form.meaning.trim(),
       tags: form.tags
         .split(",")
@@ -506,6 +800,10 @@ function App() {
       updatedAt: now,
     };
     if (!values.expression || !values.meaning) return;
+    if (!values.personalExample.trim() || !values.exampleMeaning.trim()) {
+      setToast("请先补全代表性例句和整句中文意思");
+      return;
+    }
 
     if (editingId) {
       const wasDraft = store.cards.some(
@@ -514,7 +812,15 @@ function App() {
       setStore((previous) => ({
         ...previous,
         cards: previous.cards.map((card) =>
-          card.id === editingId ? { ...card, ...values, status: "active" } : card,
+          card.id === editingId
+            ? {
+                ...card,
+                ...values,
+                status: "active",
+                needsTarget: false,
+                userEdited: true,
+              }
+            : card,
         ),
       }));
       if (wasDraft) {
@@ -526,7 +832,7 @@ function App() {
     } else {
       const card = {
         ...values,
-        id: crypto.randomUUID(),
+        id: createId(),
         status: "active",
         createdAt: now,
         dueAt: now,
@@ -550,11 +856,21 @@ function App() {
   function deleteCard(card) {
     const confirmed = window.confirm(`删除“${card.expression}”？此操作无法撤销。`);
     if (!confirmed) return;
-    setStore((previous) => ({
-      ...previous,
-      cards: previous.cards.filter((item) => item.id !== card.id),
-      reviews: previous.reviews.filter((review) => review.cardId !== card.id),
-    }));
+    setStore((previous) => {
+      const captureIds = [
+        ...(card.captureIds || []),
+        card.captureId,
+      ].filter(Boolean);
+      return {
+        ...previous,
+        cards: previous.cards.filter((item) => item.id !== card.id),
+        reviews: previous.reviews.filter((review) => review.cardId !== card.id),
+        dismissedCaptureIds: Array.from(new Set([
+          ...(previous.dismissedCaptureIds || []),
+          ...captureIds,
+        ])),
+      };
+    });
     setToast("卡片已删除");
   }
 
@@ -696,7 +1012,7 @@ function App() {
             dueCards={dueCards}
             nextCard={nextCard}
             revealed={revealed}
-            onReveal={() => setRevealed(true)}
+            onReveal={revealAnswer}
             onRate={rateCard}
             onSpeak={speak}
             onAdd={openNewCard}
@@ -753,14 +1069,20 @@ function InboxView({ cards, onEdit, onDelete }) {
             <article className="inbox-row" key={card.id}>
               <div className="inbox-copy">
                 <div>
-                  <h2>{card.expression}</h2>
-                  <span>{card.source || "Bob"}</span>
+                  <h2>{card.needsTarget ? "请选择要记的单词" : card.expression}</h2>
+                  <div className="word-meta">
+                    <span>{card.source || "Bob"}</span>
+                    <DifficultyBadge level={card.difficulty} />
+                  </div>
                 </div>
                 {card.originalLine && <p>{card.originalLine}</p>}
+                {card.needsTarget && (
+                  <small>完整句子已经保留。选择目标单词后，再补充这个单词在句中的意思。</small>
+                )}
               </div>
               <div className="row-actions">
                 <button className="primary-button" type="button" onClick={() => onEdit(card)}>
-                  <Edit3 size={17} />补充含义
+                  <Edit3 size={17} />{card.needsTarget ? "选择单词" : "补充含义"}
                 </button>
                 <IconButton label={`删除 ${card.expression}`} className="danger" onClick={() => onDelete(card)}>
                   <Trash2 size={17} />
@@ -802,57 +1124,100 @@ function ReviewView({
     );
   }
 
+  const cloze = createCloze(currentCard.personalExample, currentCard.expression);
+
   return (
     <div className="review-layout">
       <section className={`study-card ${revealed ? "revealed" : ""}`}>
         <div className="card-kicker">
-          <span>{currentCard.source || "Daily life"}</span>
+          <div className="word-meta">
+            <span>{currentCard.source || "Daily life"}</span>
+            <DifficultyBadge level={currentCard.difficulty} />
+          </div>
           <span>{dueCards.length} 张待复习</span>
         </div>
 
-        <div className="expression-row">
-          <div>
-            <h1>{currentCard.expression}</h1>
-            {currentCard.pronunciation && <p>{currentCard.pronunciation}</p>}
+        {!revealed && cloze ? (
+          <div className="recall-heading">
+            <span>CONTEXT RECALL</span>
+            <h1>哪一个英语表达适合这里？</h1>
           </div>
-          <IconButton
-            label={`朗读 ${currentCard.expression}`}
-            className="speak-button"
-            onClick={() => onSpeak(currentCard.expression)}
-          >
-            <Volume2 size={21} />
-          </IconButton>
-        </div>
+        ) : (
+          <div className="expression-row">
+            <div>
+              <h1>{currentCard.expression}</h1>
+              {currentCard.pronunciation && <p>{currentCard.pronunciation}</p>}
+            </div>
+            <IconButton
+              label={`朗读 ${currentCard.expression}`}
+              className="speak-button"
+              onClick={() => onSpeak(currentCard.expression)}
+            >
+              <Volume2 size={21} />
+            </IconButton>
+          </div>
+        )}
 
-        <blockquote>{currentCard.originalLine || "在脑中回想你遇见它的场景。"}</blockquote>
+        {cloze ? (
+          <>
+            <blockquote className="recall-sentence">
+              {revealed ? (
+                currentCard.personalExample
+              ) : (
+                <>
+                  {cloze.before}<span className="cloze-blank" aria-label="空格" />{cloze.after}
+                </>
+              )}
+            </blockquote>
+            {currentCard.exampleMeaning && (
+              <p className="recall-meaning">{currentCard.exampleMeaning}</p>
+            )}
+          </>
+        ) : (
+          <blockquote>{currentCard.originalLine || "在脑中回想你遇见它的场景。"}</blockquote>
+        )}
 
         {!revealed ? (
           <div className="recall-panel">
-            <p>这一幕里，它是什么意思？</p>
+            <p>{cloze ? "先在脑中说出完整句子，再看答案。" : "这一幕里，它是什么意思？"}</p>
             <button className="reveal-button" type="button" onClick={onReveal}>
-              <Eye size={19} />显示含义
+              <Eye size={19} />显示答案
             </button>
           </div>
         ) : (
           <div className="answer-panel">
             <div className="answer-block meaning-block">
-              <span>剧中含义</span>
+              <span>这个表达</span>
               <p>{currentCard.meaning}</p>
             </div>
+            {currentCard.originalLine && (
+              <div className="answer-block">
+                <span>最初遇见它的句子</span>
+                <p className="source-sentence">{currentCard.originalLine}</p>
+              </div>
+            )}
             {currentCard.sceneContext && (
               <div className="answer-block">
-                <span>场景</span>
+                <span>原句中的意思</span>
                 <p>{currentCard.sceneContext}</p>
               </div>
             )}
-            {currentCard.personalExample && (
+            {cloze && (
+              <div className="example-actions">
+                <span>把完整例句读一遍，注意这个表达为什么正好适合这里。</span>
+                <IconButton label="朗读完整例句" onClick={() => onSpeak(currentCard.personalExample)}>
+                  <Volume2 size={18} />
+                </IconButton>
+              </div>
+            )}
+            {!cloze && currentCard.personalExample && (
               <div className="answer-block example-block">
-                <span>我的例句</span>
-                <p>{currentCard.personalExample}</p>
-                <IconButton
-                  label="朗读例句"
-                  onClick={() => onSpeak(currentCard.personalExample)}
-                >
+                <span>代表性例句</span>
+                <div>
+                  <p>{currentCard.personalExample}</p>
+                  {currentCard.exampleMeaning && <small>{currentCard.exampleMeaning}</small>}
+                </div>
+                <IconButton label="朗读例句" onClick={() => onSpeak(currentCard.personalExample)}>
                   <Volume2 size={18} />
                 </IconButton>
               </div>
@@ -958,7 +1323,10 @@ function LibraryView({
               <div className="word-cell">
                 <div>
                   <h2>{card.expression}</h2>
-                  <span>{card.pronunciation}</span>
+                  <div className="word-meta">
+                    <span>{card.pronunciation}</span>
+                    <DifficultyBadge level={card.difficulty} />
+                  </div>
                 </div>
                 <IconButton label={`朗读 ${card.expression}`} onClick={() => onSpeak(card.expression)}>
                   <Volume2 size={18} />
@@ -966,7 +1334,7 @@ function LibraryView({
               </div>
               <div className="meaning-cell">
                 <p>{card.meaning}</p>
-                <span>{card.originalLine}</span>
+                <span>{card.personalExample || card.originalLine}</span>
               </div>
               <div className="status-cell">
                 <span className={new Date(card.dueAt).getTime() <= Date.now() ? "due-pill" : "date-pill"}>
@@ -1018,11 +1386,11 @@ function CardModal({ form, editing, onChange, onClose, onSave }) {
         </div>
 
         <form onSubmit={onSave}>
-          <div className="form-grid two-columns">
+          <div className="form-grid card-basics">
             <label>
               <span>英语表达 *</span>
               <input
-                autoFocus={!editing || Boolean(form.meaning)}
+                autoFocus={!editing || !form.expression || Boolean(form.meaning)}
                 required
                 value={form.expression}
                 onChange={(event) => update("expression", event.target.value)}
@@ -1037,12 +1405,27 @@ function CardModal({ form, editing, onChange, onClose, onSave }) {
                 placeholder="/ˈbuː.mə.ræŋ/"
               />
             </label>
+            <label>
+              <span>单词难度</span>
+              <select
+                value={form.difficulty}
+                onChange={(event) => update("difficulty", event.target.value)}
+              >
+                <option value="">未分级</option>
+                <option value="A1">A1 · 入门</option>
+                <option value="A2">A2 · 基础</option>
+                <option value="B1">B1 · 中级</option>
+                <option value="B2">B2 · 中高级</option>
+                <option value="C1">C1 · 高级</option>
+                <option value="C2">C2 · 精通</option>
+              </select>
+            </label>
           </div>
 
           <label>
             <span>这一幕里的含义 *</span>
             <textarea
-              autoFocus={editing && !form.meaning}
+              autoFocus={editing && Boolean(form.expression) && !form.meaning}
               required
               value={form.meaning}
               onChange={(event) => update("meaning", event.target.value)}
@@ -1069,11 +1452,22 @@ function CardModal({ form, editing, onChange, onClose, onSave }) {
           </label>
 
           <label>
-            <span>我的例句</span>
+            <span>代表性例句 *</span>
             <textarea
+              required
               value={form.personalExample}
               onChange={(event) => update("personalExample", event.target.value)}
-              placeholder="写一句与你自己的生活有关的话"
+              placeholder="写一个具体、有后果的场景，并让这个表达不可替代"
+            />
+          </label>
+
+          <label>
+            <span>代表性例句的意思 *</span>
+            <textarea
+              required
+              value={form.exampleMeaning}
+              onChange={(event) => update("exampleMeaning", event.target.value)}
+              placeholder="自然地翻译整句话，不要只重复单词释义"
             />
           </label>
 
