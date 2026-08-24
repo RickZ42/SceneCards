@@ -11,7 +11,7 @@
       "sceneContext": "",
       "personalExample": "We want to prevent a repetition of last summer's fires, which destroyed more than 500,000 acres of land.",
       "exampleMeaning": "去年夏天的火灾毁了超过50万英亩地，我们要防止此类火灾再次发生。",
-      "memoryHook": "",
+      "memoryHook": "词族钩子：repeat 是‘再做一次’，repetition 是这件事再次出现。看到 re-，先问自己：什么又来了一遍？",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -20,7 +20,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 3,
+      "contentRevision": 4,
       "createdAt": "2026-07-30T03:23:36.224Z"
     },
     {
@@ -33,7 +33,7 @@
       "sceneContext": "",
       "personalExample": "Her explanation sounded plausible until the timestamps showed she was in another city.",
       "exampleMeaning": "她的解释听起来很可信，直到时间记录显示她当时在另一座城市。",
-      "memoryHook": "",
+      "memoryHook": "近义词对比：possible 只表示‘可能’，plausible 还要‘听起来讲得通’。时间戳没出现前，那套解释很 plausible。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -42,7 +42,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 3,
+      "contentRevision": 4,
       "createdAt": "2026-07-30T03:23:36.227Z"
     },
     {
@@ -55,7 +55,7 @@
       "sceneContext": "",
       "personalExample": "I deliberately left the technical details out of the email so the main decision would be clear.",
       "exampleMeaning": "我有意没有在邮件中写技术细节，好让主要决定更加清楚。",
-      "memoryHook": "",
+      "memoryHook": "动作联想：做事前先 deliberate（认真考虑），考虑完仍选择去做，就是 deliberately，强调不是手滑或偶然。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -64,7 +64,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 3,
+      "contentRevision": 4,
       "createdAt": "2026-07-30T03:23:36.228Z"
     },
     {
@@ -77,7 +77,7 @@
       "sceneContext": "",
       "personalExample": "I gave her very explicit directions how to get here.",
       "exampleMeaning": "我明确地告诉她来这儿怎么走。",
-      "memoryHook": "",
+      "memoryHook": "成对记忆：explicit 是把话摊开说明，implicit 是话里暗含。directions 写到别人不必猜，就是 explicit。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -86,7 +86,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 3,
+      "contentRevision": 4,
       "createdAt": "2026-07-30T03:23:36.229Z"
     },
     {
@@ -99,7 +99,7 @@
       "sceneContext": "",
       "personalExample": "A prestigious university can open doors, but the right supervisor matters more for a PhD.",
       "exampleMeaning": "名校可以带来机会，但对博士来说，合适的导师更重要。",
-      "memoryHook": "",
+      "memoryHook": "词族钩子：prestige 是声望，prestigious 是‘带着声望光环的’。想象大学名字一出现，门就更容易打开。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -108,7 +108,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 3,
+      "contentRevision": 4,
       "createdAt": "2026-07-30T03:23:36.230Z"
     },
     {
@@ -121,7 +121,7 @@
       "sceneContext": "",
       "personalExample": "A prestigious university can open doors, but the right supervisor matters more for a PhD.",
       "exampleMeaning": "名校可以带来机会，但对博士来说，合适的导师更重要。",
-      "memoryHook": "",
+      "memoryHook": "词族钩子：prestige 是声望，prestigious 是‘带着声望光环的’。想象大学名字一出现，门就更容易打开。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -130,7 +130,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 3,
+      "contentRevision": 4,
       "createdAt": "2026-07-30T03:23:36.231Z"
     },
     {
@@ -143,7 +143,7 @@
       "sceneContext": "",
       "personalExample": "Young children often imitate the way adults speak before they understand every word.",
       "exampleMeaning": "幼儿在理解每个词之前，常常会先模仿成年人说话的方式。",
-      "memoryHook": "",
+      "memoryHook": "镜子法：孩子像镜子一样复制成年人的语气和口型。脑中一出现‘照着别人做’，立刻说 imitate。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -152,7 +152,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 3,
+      "contentRevision": 4,
       "createdAt": "2026-07-30T03:43:58.565Z"
     },
     {
@@ -165,7 +165,7 @@
       "sceneContext": "研究数据语境：说明现有数据能否从研究档案或数据库中获取。",
       "personalExample": "The existing Oxford RNA-seq data can be accessed through the research archive.",
       "exampleMeaning": "现有的 Oxford RNA-seq 数据可以通过研究档案获取。",
-      "memoryHook": "access 是‘进入并取得’，accessed 表示已经进入、查看或调取过。",
+      "memoryHook": "门与档案柜：先打开 access 这扇门，再把里面的数据取出来；accessed 表示已经进入或调取过。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -174,7 +174,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 4,
+      "contentRevision": 5,
       "createdAt": "2026-07-30T03:50:11.292Z"
     },
     {
@@ -187,7 +187,7 @@
       "sceneContext": "",
       "personalExample": "His reputation was destroyed when he was caught stealing some money.",
       "exampleMeaning": "他偷钱时被当场抓住，这使他声名扫地。",
-      "memoryHook": "",
+      "memoryHook": "把 reputation 想成一个跟在名字后面的公众标签：人不在场，别人仍会先看到这个标签；偷窃会把它撕坏。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -196,7 +196,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 3,
+      "contentRevision": 4,
       "createdAt": "2026-07-30T04:07:00.298Z"
     },
     {
@@ -209,7 +209,7 @@
       "sceneContext": "",
       "personalExample": "Two of the directors filed a lawsuit against their former employer.",
       "exampleMeaning": "其中的两位董事已经对其前雇主提起诉讼。",
-      "memoryHook": "",
+      "memoryHook": "复合词直拆：law + suit。想象穿 suit 的律师抱着一摞法律文件去法院，整件官司就是 a lawsuit。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -218,7 +218,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-07-30T07:46:03.941Z"
     },
     {
@@ -231,7 +231,7 @@
       "sceneContext": "",
       "personalExample": "He believes that climate change may still be reversible.",
       "exampleMeaning": "他相信气候变迁依然可以逆转。",
-      "memoryHook": "",
+      "memoryHook": "按钮联想：reverse 是倒转，-ible 是‘可以……的’。看到可倒带的录像箭头，就想到 reversible = 可以逆转。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -240,7 +240,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-07-30T07:48:21.794Z"
     },
     {
@@ -253,7 +253,7 @@
       "sceneContext": "",
       "personalExample": "I've made a few last-minute amendments to the article.",
       "exampleMeaning": "我对文章做了一些最后的修改。",
-      "memoryHook": "",
+      "memoryHook": "红笔场景：amend 是修改得更合适，amendments 是稿纸上最后补进去的一处处修改；常与 make 搭配。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -262,7 +262,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-07-30T08:30:08.667Z"
     },
     {
@@ -275,7 +275,7 @@
       "sceneContext": "",
       "personalExample": "If you have any queries about your treatment, the doctor will answer them.",
       "exampleMeaning": "您如果对治疗有任何疑问，医生将会做出解答。",
-      "memoryHook": "",
+      "memoryHook": "邮件场景：标题写 Queries，下面就是一串等待回答的问题。看到 any queries，直接理解成‘还有任何疑问吗？’",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -284,7 +284,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-07-30T08:49:57.634Z"
     },
     {
@@ -297,7 +297,7 @@
       "sceneContext": "",
       "personalExample": "I'm so hot and tired - I think a long cool drink is indicated!",
       "exampleMeaning": "我又热又累——需要来一大杯冷饮！",
-      "memoryHook": "",
+      "memoryHook": "仪表盘钩子：indicator 的指针不会长篇解释，只会指出某个状态；indicate 就是用迹象、符号或动作表明。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -306,7 +306,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-07-30T08:52:54.821Z"
     },
     {
@@ -319,7 +319,7 @@
       "sceneContext": "雨下得很大，按理说不该出去，但这并没有阻止我们，我们还是出去了。",
       "personalExample": "The genome was highly repetitive. Nevertheless, we were able to obtain a chromosome-level assembly.",
       "exampleMeaning": "这个基因组含有大量重复序列。尽管如此，我们仍然获得了染色体级别的组装。",
-      "memoryHook": "never + the + less：可以联想成 not any less because of that，前面的困难并没有让后面的行动减少或停止。however 只是普通转折；nevertheless 更强调‘虽然有这个不利因素，但它没有阻止结果发生’。",
+      "memoryHook": "逻辑钩子：前面放一堵困难的墙，nevertheless 表示结果还是越过了墙。高度重复，然而组装仍然完成。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -328,7 +328,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-07-30T09:30:00.601Z"
     },
     {
@@ -341,7 +341,7 @@
       "sceneContext": "强调一段需要投入时间和努力的追寻，不是普通的短暂搜索。",
       "personalExample": "Nothing will stop them in their quest for truth.",
       "exampleMeaning": "没有什么可以阻止他们对真理的追求。",
-      "memoryHook": "把 quest 想成游戏里的长期主线任务：目标明确，但要走很远才能完成。",
+      "memoryHook": "游戏主线：quest 不是随手搜一下，而是一段有目标、要走很远的长期任务；a quest for truth 就是追寻真相。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -350,7 +350,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-07-31T02:26:13.916Z"
     },
     {
@@ -363,7 +363,7 @@
       "sceneContext": "",
       "personalExample": "Official policy has changed, for reasons that remain obscure.",
       "exampleMeaning": "官方的政策已改变，原因尚不清楚。",
-      "memoryHook": "",
+      "memoryHook": "镜头法：镜头被雾遮住时，看不清就是 obscure；文章像被雾遮住时，意思晦涩也用 obscure。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -372,7 +372,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-03T04:24:11.444Z"
     },
     {
@@ -385,7 +385,7 @@
       "sceneContext": "",
       "personalExample": "The findings show a substantial difference between the opinions of men and women.",
       "exampleMeaning": "这些发现表明男性和女性之间存在着重大的意见分歧。",
-      "memoryHook": "",
+      "memoryHook": "重量感：substantial 的东西拿在手里有分量，所以 substantial difference 不是细小波动，而是足以影响结论的显著差异。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -394,7 +394,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-03T04:28:08.295Z"
     },
     {
@@ -407,7 +407,7 @@
       "sceneContext": "",
       "personalExample": "At music school I studied piano and composition.",
       "exampleMeaning": "我在音乐学校学习钢琴和作曲。",
-      "memoryHook": "",
+      "memoryHook": "拼装联想：compose 是把部分放到一起；composition 可以是各部分的组成，也可以是把音符组织起来的作曲。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -416,7 +416,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-03T04:32:59.396Z"
     },
     {
@@ -429,7 +429,7 @@
       "sceneContext": "",
       "personalExample": "This piece shows that he is developing an extraordinary compositional boldness.",
       "exampleMeaning": "这首曲子显示他在发展一种非比寻常的创新。",
-      "memoryHook": "",
+      "memoryHook": "接力记忆：composition 是‘组成或作曲’，加 -al 后 compositional 专门描述‘组成方式或作曲方面的’特征。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -438,7 +438,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-03T04:33:35.430Z"
     },
     {
@@ -451,7 +451,7 @@
       "sceneContext": "",
       "personalExample": "The company has disclosed profits of over £200 million.",
       "exampleMeaning": "这家公司已公布其利润超过两亿英镑。",
-      "memoryHook": "",
+      "memoryHook": "开文件夹的画面：原本 closed 的信息被打开给别人看。这个只是记忆画面，disclose 的核心是正式透露或公布。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -460,7 +460,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-04T08:17:57.303Z"
     },
     {
@@ -473,7 +473,7 @@
       "sceneContext": "",
       "personalExample": "There is a great deal of interest in harnessing wind and waves as new sources of power.",
       "exampleMeaning": "人们对开发利用风和波浪这些新能源非常感兴趣。",
-      "memoryHook": "",
+      "memoryHook": "马具画面：harness 原本把马的力量导向车；harness wind energy 就是把风的力量套住并引到可用的方向。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -482,7 +482,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-04T14:45:43.393Z"
     },
     {
@@ -495,7 +495,7 @@
       "sceneContext": "",
       "personalExample": "The software is pretty much there - it just needs a little tweaking.",
       "exampleMeaning": "软件差不多好了——只需要一点点改进。",
-      "memoryHook": "",
+      "memoryHook": "小旋钮法：软件已经基本完成，只需要轻轻拧几个小旋钮。tweak 强调小幅微调，不是推倒重做。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -504,7 +504,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-04T16:02:43.126Z"
     },
     {
@@ -517,7 +517,7 @@
       "sceneContext": "",
       "personalExample": "The boss issued a directive about not using the fax machine.",
       "exampleMeaning": "老板下令不要使用那台传真机。",
-      "memoryHook": "directive 里有 direct：领导不是给建议，而是直接告诉你该怎么做，所以是‘必须执行的正式指令’。",
+      "memoryHook": "direct 表示直接指向；directive 不是随口建议，而是一支写着‘照此执行’的箭头，也就是正式指令。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -526,7 +526,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-04T16:04:46.191Z"
     },
     {
@@ -539,7 +539,7 @@
       "sceneContext": "",
       "personalExample": "Although she was quite young, she showed a lot of initiative and was promoted to manager after a year.",
       "exampleMeaning": "她虽然很年轻，但工作积极主动，一年后就被提拔为经理。",
-      "memoryHook": "",
+      "memoryHook": "起跑画面：initiate 是发起。别人还站在起跑线时，你已经自己迈出第一步，这种主动性就是 initiative。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -548,7 +548,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-04T16:48:53.829Z"
     },
     {
@@ -561,7 +561,7 @@
       "sceneContext": "",
       "personalExample": "These tent ropes are too slack - they need tightening.",
       "exampleMeaning": "这些帐篷绳太松了——需要把它们紧一紧。",
-      "memoryHook": "",
+      "memoryHook": "反义绳索：taut 的绳子绷紧，slack 的绳子垂下来。只要看见松垮的帐篷绳，就能叫出 slack。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -570,7 +570,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-04T16:51:05.888Z"
     },
     {
@@ -583,7 +583,7 @@
       "sceneContext": "描述为了享受而进行的活动，例如 recreational fishing、cycling 或 sport。",
       "personalExample": "Recreational fishing is allowed on the river.",
       "exampleMeaning": "在这条河上允许休闲性垂钓。",
-      "memoryHook": "recreation 是休闲活动；recreational 就是‘为了休闲而做的’。",
+      "memoryHook": "目的判断：同样是 fishing，挣钱的是 commercial，为放松的是 recreational。先问‘是工作还是娱乐？’",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -592,7 +592,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-04T16:51:41.903Z"
     },
     {
@@ -605,7 +605,7 @@
       "sceneContext": "",
       "personalExample": "I felt like a complete knucklehead when I arrived at the airport without my passport.",
       "exampleMeaning": "到了机场才发现没带护照，我觉得自己真是个十足的笨蛋。",
-      "memoryHook": "",
+      "memoryHook": "夸张画面：脑袋的位置装了一只 knuckle（指关节），当然会做糊涂事。knucklehead 是带调侃味的‘笨蛋’。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -614,7 +614,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-04T17:01:30.208Z"
     },
     {
@@ -627,7 +627,7 @@
       "sceneContext": "",
       "personalExample": "Could you fetch me my glasses/fetch my glasses for me from the other room, please?",
       "exampleMeaning": "你去另一个房间帮我把眼镜拿过来好吗？",
-      "memoryHook": "",
+      "memoryHook": "狗叼球：球被扔出去，狗跑去拿，再带回你手上。这个‘去取并带回来’的完整往返动作就是 fetch。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -636,7 +636,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-04T17:15:27.608Z"
     },
     {
@@ -649,7 +649,7 @@
       "sceneContext": "",
       "personalExample": "Most of the work was done by apprentices.",
       "exampleMeaning": "大部分活儿是由学徒们做的。",
-      "memoryHook": "",
+      "memoryHook": "工坊画面：师傅在前面做，apprentice 在旁边一边工作一边学。它不是普通学生，而是跟师傅学手艺的学徒。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -658,7 +658,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-04T17:18:42.739Z"
     },
     {
@@ -671,7 +671,7 @@
       "sceneContext": "",
       "personalExample": "A chloroplast is an organelle that enables a plant cell to capture light energy.",
       "exampleMeaning": "叶绿体是一种能让植物细胞捕获光能的细胞器。",
-      "memoryHook": "",
+      "memoryHook": "缩小联想：organ 是器官，organelle 像细胞里的‘小器官’。叶绿体就是负责捕获光能的一间功能小室。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -680,7 +680,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-05T03:07:07.083Z"
     },
     {
@@ -693,7 +693,7 @@
       "sceneContext": "",
       "personalExample": "Intuitively, it makes sense to start the project now.",
       "exampleMeaning": "直观地说，现在开始这个项目是合适的。",
-      "memoryHook": "",
+      "memoryHook": "先感觉、后计算：还没列公式，心里已经觉得这个选择讲得通，这种凭直觉判断就是 intuitively。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -702,7 +702,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-05T03:09:22.163Z"
     },
     {
@@ -715,7 +715,7 @@
       "sceneContext": "",
       "personalExample": "the rigorous controls governing the sale of shares",
       "exampleMeaning": "对管理股权出售进行的严格控制",
-      "memoryHook": "",
+      "memoryHook": "实验室检查表：每一步都有对照、重复和标准，任何一步都不能含糊。这样严格而严谨的过程就是 rigorous。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -724,7 +724,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-05T07:30:52.198Z"
     },
     {
@@ -737,7 +737,7 @@
       "sceneContext": "导航让两个人继续前进，路却已经消失。他们本来只想骑乡间公路，最后却闯进私人农场、翻越围栏，还差点撞上一只袋熊。",
       "personalExample": "Google Maps kept telling us to continue, so we ended up crossing private farmland and lifting our bikes over fences.",
       "exampleMeaning": "Google Maps 一直让我们继续走，结果我们最后穿过了私人农场，还把自行车抬过一道道围栏。",
-      "memoryHook": "end up 关注意外的结局：本来只是跟着导航，结果却要抬车翻围栏。",
+      "memoryHook": "终点反转：原计划在地图上是一条公路，实际终点却变成抬车翻围栏。end up 专门讲最后落到的、常常意外的结果。",
       "source": "Daily story - Google Maps cycling trip",
       "tags": [
         "daily story",
@@ -748,7 +748,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-07T08:00:23.534Z"
     },
     {
@@ -761,7 +761,7 @@
       "sceneContext": "晚上九点，四周已经完全黑了；两个人的食物和水都耗尽了，仍然离目的地很远。",
       "personalExample": "By nine o'clock that evening, we had run out of food and water.",
       "exampleMeaning": "到那天晚上九点，我们的食物和水都已经用光了。",
-      "memoryHook": "容器里最后一点也没有了，就是 run out of。",
+      "memoryHook": "空容器画面：食物袋和水瓶都见底，东西已经从容器里‘跑光了’。run out of 后面接被耗尽的东西。",
       "source": "Daily story - Google Maps cycling trip",
       "tags": [
         "daily story",
@@ -772,7 +772,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-07T08:00:23.562Z"
     },
     {
@@ -785,7 +785,7 @@
       "sceneContext": "天已经全黑，食物和水也没有了，他们意识到当晚绝不可能骑到原定终点。",
       "personalExample": "There was no chance that we would reach our destination before midnight.",
       "exampleMeaning": "我们根本不可能在午夜前到达目的地。",
-      "memoryHook": "不是机会很小，而是 no chance：已经可以排除这种可能。",
+      "memoryHook": "概率归零：不是 unlikely 的小概率，而是把可能性直接拨到 0。后面用 that 接完整的‘不可能事件’。",
       "source": "Daily story - Google Maps cycling trip",
       "tags": [
         "daily story",
@@ -796,7 +796,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-07T08:00:23.574Z"
     },
     {
@@ -809,7 +809,7 @@
       "sceneContext": "两个人在黑暗中已经走投无路，却恰好在导航路线上遇到了一座农舍。",
       "personalExample": "Just when we thought we were completely lost, we came across a farmhouse beside the track.",
       "exampleMeaning": "就在我们以为自己彻底迷路时，偶然在小路旁发现了一座农舍。",
-      "memoryHook": "没有在找，却迎面碰上了：come across。",
+      "memoryHook": "路线交叉：你没有寻找农舍，只是走着走着路线与它交叉了。come across 就是偶然碰见或发现。",
       "source": "Daily story - Google Maps cycling trip",
       "tags": [
         "daily story",
@@ -820,7 +820,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-07T08:00:23.601Z"
     },
     {
@@ -833,7 +833,7 @@
       "sceneContext": "农夫一家给了他们食物和水，最后农夫没有只把他们送到附近，而是一路开车把他们送回家。",
       "personalExample": "The farmer loaded our bikes into his truck and drove us all the way home.",
       "exampleMeaning": "农夫把我们的自行车装上卡车，一路把我们送回了家。",
-      "memoryHook": "all the way 强调从农舍到家，一段也没有少。",
+      "memoryHook": "路线拉满：从农舍到家的一整条线全部走完，中间没有少一段。all the way 强调完整距离。",
       "source": "Daily story - Google Maps cycling trip",
       "tags": [
         "daily story",
@@ -844,7 +844,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-07T08:00:23.630Z"
     },
     {
@@ -857,7 +857,7 @@
       "sceneContext": "农夫说，几年前一名法国骑行者也按照同一条路线来到了这座农舍，因此这显然不是导航第一次把人送到他家门口。",
       "personalExample": "Apparently, a French cyclist had arrived at the same farmhouse after following the same route.",
       "exampleMeaning": "听农夫说，一名法国骑行者也曾沿着同一条路线来到这座农舍。",
-      "memoryHook": "这是听完农夫的话才知道的，所以用 apparently，而不是 definitely。",
+      "memoryHook": "证据标签：你不是亲眼见到法国骑手，而是听农夫说才知道。apparently 给信息贴上‘据说或根据迹象看来’的标签。",
       "source": "Daily story - Google Maps cycling trip",
       "tags": [
         "daily story",
@@ -868,20 +868,20 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-07T08:00:23.633Z"
     },
     {
       "id": "c2333123-2a1a-4553-8b66-e256a6dc9e3b",
       "expression": "exploit",
-      "pronunciation": "ɪkˈsplɔɪt",
+      "pronunciation": "/ɪkˈsplɔɪt/",
       "difficulty": "B2",
-      "meaning": "动词 利用；开发；剥削；开采；应用；勋绩\n名词 伟业；功",
-      "originalLine": "",
-      "sceneContext": "",
-      "personalExample": "She was telling me about her exploits while travelling around Africa.",
-      "exampleMeaning": "她跟我讲述了她在非洲各地旅游时的奇遇。",
-      "memoryHook": "",
+      "meaning": "动词：利用某种机会、机制或弱点使自己获益；有时带有操纵或占便宜的意味。",
+      "originalLine": "These results provide an exciting foundation for investigating chemical communication and how sexually deceptive orchids exploit the normal mate-search system of their thynnine wasp pollinators.",
+      "sceneContext": "性欺骗兰花利用 thynnine 黄蜂正常的配偶搜索系统来完成授粉。",
+      "personalExample": "Sexually deceptive orchids exploit a male wasp's search for a mate by imitating the scent of a female.",
+      "exampleMeaning": "性欺骗兰花模仿雌蜂的气味，利用雄蜂寻找配偶的行为完成授粉。",
+      "memoryHook": "重音分角色：动词 exPLOIT 是利用机制获益；名词 EXploit 是壮举。兰花那句用动词：借黄蜂寻偶系统完成授粉。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -890,7 +890,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-07T08:01:55.546Z"
     },
     {
@@ -903,7 +903,7 @@
       "sceneContext": "",
       "personalExample": "Inside the room there was the unmistakable odour of sweaty feet.",
       "exampleMeaning": "房间里有一股明显的臭脚汗味。",
-      "memoryHook": "",
+      "memoryHook": "英式拼写钩子：British odour 比 American odor 多一个 u。想象臭脚气味像一团看不见的云，占满整个房间。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -912,7 +912,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-07T08:02:34.467Z"
     },
     {
@@ -925,7 +925,7 @@
       "sceneContext": "",
       "personalExample": "She has extraordinary powers of perception for one so young.",
       "exampleMeaning": "她年纪轻轻就有着非凡的洞察力。",
-      "memoryHook": "",
+      "memoryHook": "心里的镜头：眼睛收到信息，perception 决定你怎样看懂它。它不只是感觉到，还包含对所见的理解。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -934,7 +934,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-07T08:02:40.468Z"
     },
     {
@@ -947,7 +947,7 @@
       "sceneContext": "",
       "personalExample": "The cornea is the transparent membrane that covers the front of the eye.",
       "exampleMeaning": "角膜是覆盖在眼球前部的透明膜。",
-      "memoryHook": "",
+      "memoryHook": "保鲜膜画面：一层很薄的膜包住表面、分隔内外。把细胞或眼球前方想成被透明薄膜覆盖。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -956,7 +956,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-07T08:02:49.477Z"
     },
     {
@@ -969,7 +969,7 @@
       "sceneContext": "",
       "personalExample": "I can think of several eligible bachelors of my acquaintance.",
       "exampleMeaning": "在认识的人当中我能想到有几位条件不错的单身汉。",
-      "memoryHook": "",
+      "memoryHook": "门口清单：年龄、资格、条件全部打勾，门才会打开。满足条件、可以被选择，就是 eligible。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -978,7 +978,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-10T03:25:35.001Z"
     },
     {
@@ -991,7 +991,7 @@
       "sceneContext": "",
       "personalExample": "Would it be breaking with precedent for the bride to make a speech?",
       "exampleMeaning": "新娘发表讲话是否有悖于惯例？",
-      "memoryHook": "",
+      "memoryHook": "时间箭头：pre- 指向前面。以前发生过、后来可拿来照着处理的例子，就是 precedent；break with precedent 是打破先例。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1000,7 +1000,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-11T10:08:46.361Z"
     },
     {
@@ -1013,7 +1013,7 @@
       "sceneContext": "",
       "personalExample": "She was distressed at how neglected the children looked.",
       "exampleMeaning": "孩子们缺少关爱的样子让她痛心不已。",
-      "memoryHook": "",
+      "memoryHook": "角落里的植物：长期没人浇水、叶子下垂，就是 neglected。重点不是一次忘记，而是持续缺少照顾。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1022,7 +1022,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-11T10:42:29.144Z"
     },
     {
@@ -1035,7 +1035,7 @@
       "sceneContext": "",
       "personalExample": "Which aspects of the job do you most enjoy?",
       "exampleMeaning": "你最喜欢这个工作的哪些方面？",
-      "memoryHook": "",
+      "memoryHook": "转动立方体：同一件事每转一面，就看到一个 aspect。讨论工作时，薪资、同事和内容都是不同方面。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1044,7 +1044,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-11T11:02:37.588Z"
     },
     {
@@ -1057,7 +1057,7 @@
       "sceneContext": "",
       "personalExample": "Many plants become extinct before they have even been catalogued.",
       "exampleMeaning": "许多植物甚至还没来得及编入目录就已经灭绝了。",
-      "memoryHook": "",
+      "memoryHook": "博物馆编号：每件标本先登记进有序清单，才算 catalogued。catalogue 作名词是目录，作动词是编目。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1066,7 +1066,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-12T05:19:06.060Z"
     },
     {
@@ -1079,7 +1079,7 @@
       "sceneContext": "",
       "personalExample": "From the stem \"sav-\" you get \"saves\", \"saved\", \"saving\", and \"saver\".",
       "exampleMeaning": "由词干 sav- 可以衍生出 saves，saved，saving 和 saver。",
-      "memoryHook": "",
+      "memoryHook": "树干与词干共用一张图：树枝从 stem 长出；saves、saved、saving 也都从词干 sav- 长出来。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1088,7 +1088,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-12T05:29:42.352Z"
     },
     {
@@ -1101,7 +1101,7 @@
       "sceneContext": "植物生物学语境：比较 xylem 输送水和 phloem 输送糖及其他有机物。",
       "personalExample": "Water and minerals move from the roots to the leaves through the xylem.",
       "exampleMeaning": "水和无机盐通过木质部从根部运输到叶片。",
-      "memoryHook": "把 xylem 想成植物体内向上的输水管；与运糖的 phloem 成对记忆。",
+      "memoryHook": "植物双管道：xylem 是从根向上的输水管，phloem 是运输糖的管道。先想一股水沿木质部往叶片上升。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1110,7 +1110,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-12T05:29:45.349Z"
     },
     {
@@ -1123,7 +1123,7 @@
       "sceneContext": "Oxford 研究语境：讨论 Sitka spruce 的 RNA-seq 数据、材料和英国林业相关性。",
       "personalExample": "Could we access the existing Oxford Sitka spruce RNA-seq data for re-analysis?",
       "exampleMeaning": "我们能否获取 Oxford 现有的西加云杉 RNA-seq 数据并重新分析？",
-      "memoryHook": "不要单独死背 Sitka；把 Sitka spruce 当成一个完整物种名称来记。",
+      "memoryHook": "整块记物种：不要孤立背 Sitka，把 Sitka spruce 和 Oxford 的 RNA-seq 材料绑在一起，直接对应西加云杉。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1132,7 +1132,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-12T05:30:39.364Z"
     },
     {
@@ -1145,7 +1145,7 @@
       "sceneContext": "实验设计语境：用 untreated group 作为参照，比较处理组发生了什么变化。",
       "personalExample": "The untreated group served as a comparator for the jasmonate-treated plants.",
       "exampleMeaning": "未处理组作为参照，用来和茉莉酸处理的植物进行比较。",
-      "memoryHook": "compare 是比较；comparator 就是被拿来比较的对象或执行比较的装置。",
+      "memoryHook": "天平画面：处理组放一边，comparator 放另一边作为参照。没有这边的对照，就不知道变化有多大。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1154,7 +1154,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-12T12:20:56.144Z"
     },
     {
@@ -1167,7 +1167,7 @@
       "sceneContext": "",
       "personalExample": "I got a cryptic text message from Sam.",
       "exampleMeaning": "我收到萨姆发来的一条含义隐晦的短信。",
-      "memoryHook": "",
+      "memoryHook": "密码短信：文字都认识，合在一起却像加了密，需要猜真正意思。这样的信息就是 cryptic。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1176,7 +1176,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-12T12:28:56.453Z"
     },
     {
@@ -1189,7 +1189,7 @@
       "sceneContext": "基因组学语境：描述不同物种之间仍保持相似的基因、序列或功能。",
       "personalExample": "This gene is highly conserved across flowering plants.",
       "exampleMeaning": "这个基因在不同开花植物中高度保守。",
-      "memoryHook": "conserve 是保存；经过漫长进化仍被保存下来的序列就是 conserved。",
+      "memoryHook": "进化保存键：经过很长时间和多个物种，这段基因仍像按下 save 一样没有大变，因此是 highly conserved。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1198,7 +1198,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-12T12:29:35.458Z"
     },
     {
@@ -1211,7 +1211,7 @@
       "sceneContext": "",
       "personalExample": "The book contains a great deal of peripheral detail.",
       "exampleMeaning": "该书包含了大量无关紧要的细节。",
-      "memoryHook": "",
+      "memoryHook": "视野边缘：直视前方时，余光看到的是 peripheral vision。由此记住 peripheral 指外围的、非核心的。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1220,7 +1220,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-12T12:29:47.467Z"
     },
     {
@@ -1233,7 +1233,7 @@
       "sceneContext": "化学生态学语境：兰花释放特定气味分子，影响黄蜂寻找配偶的行为。",
       "personalExample": "The orchid releases an odorant that mimics the scent of a female wasp.",
       "exampleMeaning": "这种兰花释放一种气味物质，模仿雌蜂的气味。",
-      "memoryHook": "odour 是气味；odorant 是制造或携带这种气味的化学物质。",
+      "memoryHook": "来源与感觉分开：odour 是你闻到的气味，odorant 是释放并携带这种气味的化学分子；兰花释放的是后者。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1242,7 +1242,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-12T12:32:05.607Z"
     },
     {
@@ -1255,7 +1255,7 @@
       "sceneContext": "",
       "personalExample": "The main character in her latest novel is a composite of several public figures of that era.",
       "exampleMeaning": "她那新小说中的主人公是集那个时期几位公众人物形象于一身的综合形象。",
-      "memoryHook": "",
+      "memoryHook": "拼贴人物：从几位公众人物各取一部分，拼成一个角色。由多个部分合成的整体就是 composite。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1264,7 +1264,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-12T12:48:12.306Z"
     },
     {
@@ -1277,7 +1277,7 @@
       "sceneContext": "昆虫社会行为语境：蜜蜂、蚂蚁和部分黄蜂的群体中存在繁殖个体与非繁殖个体的分工。",
       "personalExample": "Eusociality in many insects involves cooperative brood care and a reproductive division of labour.",
       "exampleMeaning": "许多昆虫的真社会性包括合作育幼和繁殖分工。",
-      "memoryHook": "eu- 有‘真正、良好’的感觉；eusociality 不是简单住在一起，而是有育幼和繁殖分工的真社会。",
+      "memoryHook": "三把钥匙：合作育幼、世代重叠、繁殖分工。三把钥匙同时出现，才打开 eusociality 这扇‘真社会性’的门。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1286,7 +1286,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-12T21:57:33.239Z"
     },
     {
@@ -1299,7 +1299,7 @@
       "sceneContext": "",
       "personalExample": "He coached the Blue Devils during their last championship season.",
       "exampleMeaning": "上一赛季他在蓝魔队执教。",
-      "memoryHook": "",
+      "memoryHook": "两种画面共用‘带人到目的地’：coach 作教练带队进步，作长途汽车把乘客带到目的地。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1308,7 +1308,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-19T13:30:41.358Z"
     },
     {
@@ -1321,7 +1321,7 @@
       "sceneContext": "Oxford 入学活动语境：在正式安排之外与老师和同学见面的欢迎招待会。",
       "personalExample": "The welcome reception will be held at St Cross College after the afternoon session.",
       "exampleMeaning": "欢迎招待会将在下午的活动结束后于 St Cross College 举行。",
-      "memoryHook": "看到活动日程里的 reception，先想象大家站着聊天、喝饮料的欢迎会，而不只是前台接待。",
+      "memoryHook": "先看场景选义：酒店门口是接待处，手机格数是信号接收，Oxford 日程里大家站着聊天的 reception 是欢迎会。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1330,7 +1330,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-19T13:50:00.585Z"
     },
     {
@@ -1343,7 +1343,7 @@
       "sceneContext": "Oxford induction 日程语境：先分组完成寻宝任务，然后向其他人汇报结果。",
       "personalExample": "The Scavenger Hunt presentations will take place at the end of the induction day.",
       "exampleMeaning": "寻宝活动汇报将在入学介绍日结束时进行。",
-      "memoryHook": "顺序记忆：hunt 先出去找线索，presentations 再回来展示找到了什么。",
+      "memoryHook": "两阶段顺序：hunt 时出去按线索寻找，presentations 时回来展示发现。先找后讲，就是整项活动。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1352,7 +1352,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-19T14:00:12.002Z"
     },
     {
@@ -1365,7 +1365,7 @@
       "sceneContext": "日常活动语境：scavenger hunt 是团队根据清单或线索寻找目标的游戏。",
       "personalExample": "A scavenger hunt is a good way to explore a new campus with your group.",
       "exampleMeaning": "寻宝活动是和小组成员一起熟悉新校园的好方法。",
-      "memoryHook": "scavenger 会到处搜寻可用的东西；scavenger hunt 就借用了这种‘四处寻找’的画面。",
+      "memoryHook": "搜寻动作：scavenger 会四处找可用的东西；scavenger hunt 借这个动作表示按清单或线索到处寻物。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1374,7 +1374,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-19T14:00:17.983Z"
     },
     {
@@ -1387,7 +1387,7 @@
       "sceneContext": "",
       "personalExample": "Physicists are investigating the apparent asymmetry in the amounts of matter and antimatter in the universe.",
       "exampleMeaning": "物理学家正在研究宇宙中物质和反物质数量的明显不对称性。",
-      "memoryHook": "",
+      "memoryHook": "前缀开关：symmetry 是两边对称，前面加 a- 表示‘不’，一边多一边少就是 asymmetry。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1396,7 +1396,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-20T08:47:44.883Z"
     },
     {
@@ -1409,7 +1409,7 @@
       "sceneContext": "科研写作语境：说明一种化合物、数据或结论的来源。",
       "personalExample": "Many medically useful compounds are derived from plants.",
       "exampleMeaning": "许多有医疗价值的化合物来源于植物。",
-      "memoryHook": "记住固定方向：A is derived from B，表示 A 是从 B 中产生或获得的。",
+      "memoryHook": "来源箭头：A is derived from B 永远画成 B → A。箭头从植物指向化合物，就表示化合物来源于植物。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1418,7 +1418,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-20T09:09:00.636Z"
     },
     {
@@ -1431,7 +1431,7 @@
       "sceneContext": "兰花与黄蜂的化学交流语境：黄蜂通过感受器检测兰花释放的气味信号。",
       "personalExample": "The wasp uses chemosensory receptors to detect the orchid's chemical signals.",
       "exampleMeaning": "这种黄蜂利用化学感受器检测兰花释放的化学信号。",
-      "memoryHook": "chemo 是化学，sensory 是感知；合起来就是‘用感觉系统读取化学信号’。",
+      "memoryHook": "透明拆分：chemo 是化学信号，sensory 是感知系统。黄蜂用受体‘闻读’兰花信号，就是 chemosensory。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1440,7 +1440,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-20T10:07:20.119Z"
     },
     {
@@ -1453,7 +1453,7 @@
       "sceneContext": "",
       "personalExample": "The police arrived to find a scene of horrifying destruction.",
       "exampleMeaning": "警察赶到时看到那个地方已经毁坏得不成样子了。",
-      "memoryHook": "",
+      "memoryHook": "舞台定格：把眼前发生的一整幕按下暂停键，这个地点、人物和事件组成的画面就是 a scene。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1462,7 +1462,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-24T07:21:59.358Z"
     },
     {
@@ -1475,7 +1475,7 @@
       "sceneContext": "开场：说完名字后，用一句话交代自己即将通过 ILESLA programme 在 Oxford 开始 DPhil。",
       "personalExample": "I'm about to start a DPhil at Oxford through the ILESLA programme.",
       "exampleMeaning": "我即将通过 ILESLA 项目在牛津大学开始博士学习。",
-      "memoryHook": "顺序 1/8：名字 → 新阶段。先想象自己站在 Oxford 的起点；about to 是‘马上要’，然后自然接 start a DPhil。",
+      "memoryHook": "起跑线：人已经站好、下一秒就迈步。about to 比 will 更靠近当下，表示马上开始 DPhil。",
       "source": "Oxford one-minute self-introduction",
       "tags": [
         "speaking",
@@ -1485,7 +1485,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-24T09:14:14Z"
     },
     {
@@ -1498,7 +1498,7 @@
       "sceneContext": "归属：从 Oxford 缩小到 St Cross College，再介绍导师 John MacKay。",
       "personalExample": "I'm based at St Cross College, and I'll be working with Professor John MacKay.",
       "exampleMeaning": "我隶属于圣十字学院，并将跟随 John MacKay 教授开展研究。",
-      "memoryHook": "顺序 2/8：Oxford → 学院 → 导师。把地图从 Oxford 放大到 St Cross，再把画面移到导师身上。",
+      "memoryHook": "地图落点：先看到 Oxford，再把图钉落在 St Cross。base 是据点，be based at 就是以某处为所属地点。",
       "source": "Oxford one-minute self-introduction",
       "tags": [
         "speaking",
@@ -1508,7 +1508,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-24T09:14:14Z"
     },
     {
@@ -1521,7 +1521,7 @@
       "sceneContext": "研究背景：先给出 plant genomics 和 epigenomics，再进入具体的 orchid genome 成果。",
       "personalExample": "My background is in plant genomics and epigenomics.",
       "exampleMeaning": "我的研究背景是植物基因组学和表观基因组学。",
-      "memoryHook": "顺序 3/8：导师 → 研究背景 → 具体成果。先说两个路标 plant genomics + epigenomics，下一句马上落到 orchid genome。",
+      "memoryHook": "履历背景板：镜头里的你在前景，背后写着 plant genomics and epigenomics；background 介绍已经做过的领域。",
       "source": "Oxford one-minute self-introduction",
       "tags": [
         "speaking",
@@ -1532,7 +1532,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-24T09:14:14Z"
     },
     {
@@ -1545,7 +1545,7 @@
       "sceneContext": "具体成果：独立完成一个澳大利亚兰花基因组；这是自己的第一个完整基因组项目，组装质量处于现有兰花基因组的最高水平之一。",
       "personalExample": "I independently assembled the genome of an Australian orchid. It was my first complete genome project, and the assembly is now among the highest-quality orchid genome assemblies available.",
       "exampleMeaning": "我独立完成了一个澳大利亚兰花的基因组组装。这是我的第一个完整基因组项目，目前该组装属于质量最高的兰花基因组组装之一。",
-      "memoryHook": "顺序 4/8：研究背景 → 一项能证明能力的成果。抓住三个钩子：independently → first complete genome project → among the highest-quality。",
+      "memoryHook": "三步成果链：independently 表示自己主导，assembled 表示完成组装，最后亮出 Australian orchid genome。",
       "source": "Oxford one-minute self-introduction",
       "tags": [
         "speaking",
@@ -1558,7 +1558,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-24T09:14:14Z"
     },
     {
@@ -1571,7 +1571,7 @@
       "sceneContext": "未来目标：同时发展实验与生物信息技能，并向不同领域的人学习。",
       "personalExample": "At Oxford, I'm looking forward to strengthening both my experimental and bioinformatics skills and learning from people in different fields.",
       "exampleMeaning": "在牛津，我期待加强实验和生物信息学两方面的技能，并向不同领域的人学习。",
-      "memoryHook": "顺序 5/8：orchid genome 成果 → 下一阶段想提升什么。记住两只手：一只做实验，一只做 bioinformatics；然后把手伸向其他研究者。",
+      "memoryHook": "身体朝前：look forward 不是回顾成绩，而是把视线投向 Oxford 下一阶段；to 后面接 strengthening 和 learning。",
       "source": "Oxford one-minute self-introduction",
       "tags": [
         "speaking",
@@ -1581,7 +1581,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-24T09:14:14Z"
     },
     {
@@ -1594,7 +1594,7 @@
       "sceneContext": "个人部分：离开实验室，骑车探索新的地方。",
       "personalExample": "Outside research, I enjoy cycling and exploring new places.",
       "exampleMeaning": "在研究之外，我喜欢骑自行车和探索新的地方。",
-      "memoryHook": "顺序 6/8：技能目标 → 走出实验室。画面里直接推开实验室的门，骑上自行车。",
+      "memoryHook": "推门转场：先把实验室门关上，再骑上自行车。Outside research 一出口，听者就知道话题转到个人生活。",
       "source": "Oxford one-minute self-introduction",
       "tags": [
         "speaking",
@@ -1604,7 +1604,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-24T09:14:14Z"
     },
     {
@@ -1617,7 +1617,7 @@
       "sceneContext": "个人故事：Google Maps 曾把普通骑行变成穿越澳大利亚乡间的意外冒险。",
       "personalExample": "Google Maps has occasionally made that more adventurous than expected.",
       "exampleMeaning": "不过，Google Maps 偶尔会让这种探索变得比预想中更有冒险性。",
-      "memoryHook": "顺序 7/8：骑行 → Google Maps 小插曲。不要解释完整故事，只停一下、笑一下，让这句承担幽默。",
+      "memoryHook": "预期与现实对照：预期只是骑行，现实却翻围栏、遇袋熊。than expected 把笑点放在两幅画面的落差上。",
       "source": "Oxford one-minute self-introduction",
       "tags": [
         "speaking",
@@ -1627,7 +1627,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-24T09:14:14Z"
     },
     {
@@ -1640,7 +1640,7 @@
       "sceneContext": "收尾：不以简历式总结结束，而是邀请对方介绍自己的研究。",
       "personalExample": "It's lovely to meet you, and I'd be interested to hear what you're working on.",
       "exampleMeaning": "很高兴认识你，我也很想听听你正在研究什么。",
-      "memoryHook": "顺序 8/8：Google Maps 笑点 → 看向对方。最后一个动作不是继续讲自己，而是把话题递给对方。",
+      "memoryHook": "把话筒递出去：自我介绍结束后不再继续讲自己，而是把话题交给对方，请他谈正在做的工作。",
       "source": "Oxford one-minute self-introduction",
       "tags": [
         "speaking",
@@ -1650,7 +1650,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 1,
+      "contentRevision": 2,
       "createdAt": "2026-08-24T09:14:14Z"
     },
     {
@@ -1663,7 +1663,7 @@
       "sceneContext": "日常活动语境：scavenger hunt 是团队根据清单或线索寻找目标的游戏。",
       "personalExample": "A scavenger hunt is a good way to explore a new campus with your group.",
       "exampleMeaning": "寻宝活动是和小组成员一起熟悉新校园的好方法。",
-      "memoryHook": "scavenger 会到处搜寻可用的东西；scavenger hunt 就借用了这种‘四处寻找’的画面。",
+      "memoryHook": "搜寻动作：scavenger 会四处找可用的东西；scavenger hunt 借这个动作表示按清单或线索到处寻物。",
       "source": "Bob 收藏",
       "tags": [
         "Bob",
@@ -1672,7 +1672,7 @@
       "needsTarget": false,
       "needsEditing": false,
       "minimumClientSchema": 3,
-      "contentRevision": 2,
+      "contentRevision": 3,
       "createdAt": "2026-08-24T09:31:32.535Z"
     }
   ]

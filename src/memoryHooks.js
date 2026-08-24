@@ -1,21 +1,6 @@
-export const MEMORY_REVIEW_THRESHOLD = 3;
+import { getCuratedMemoryHook } from "./curatedMemoryHooks.js";
 
-const WORD_CLUES = {
-  boomerang:
-    "画面联想：回旋镖飞出去又回来，所以作动词时表示行动产生反效果，最后影响发起者。",
-  deliberately:
-    "词族联想：deliberate 可以表示深思熟虑；deliberately 就是经过考虑后故意地去做。",
-  directive:
-    "词族联想：directive 里有 direct（指导、指向）；它不是普通建议，而是直接下达、要求执行的指令。",
-  exploit:
-    "对比联想：exploit 比 use 更强调借助机会、机制或弱点，让自己获益。",
-  initiative:
-    "词族联想：initiate 是开始；initiative 就是不用等别人推动，自己先迈出第一步。",
-  plausible:
-    "对比联想：possible 是有可能发生；plausible 是听起来合情合理，让人愿意相信。",
-  repetition:
-    "词族联想：repeat 是重复；repetition 就是重复这一动作，或再次出现的事物。",
-};
+export const MEMORY_REVIEW_THRESHOLD = 3;
 
 function compactText(value, maxLength) {
   const text = String(value || "")
@@ -30,23 +15,47 @@ function asSentenceFragment(value) {
   return value.replace(/[。.!?！？]+$/u, "");
 }
 
-function getWordClue(expression) {
+function getMorphologyClue(expression) {
   const key = String(expression || "").trim().toLocaleLowerCase();
-  if (WORD_CLUES[key]) return WORD_CLUES[key];
-
   if (/^[a-z][a-z'-]+ly$/i.test(key) && !/(early|friendly|likely|lovely)$/i.test(key)) {
-    return "词形提示：-ly 常把一个词变成副词。先找它修饰的动作，再问“这个动作是怎样发生的？”";
+    return "先把 -ly 暂时拿掉，找到它修饰的动作，再恢复成‘以这种方式做’。";
   }
   if (/^[a-z][a-z'-]+(tion|sion)$/i.test(key)) {
-    return "词形提示：-tion / -sion 常表示一个动作、过程或结果；先回想它背后的动作。";
+    return "-tion / -sion 常把动作变成过程或结果；先寻找它背后的动词。";
   }
   if (/^[a-z][a-z'-]+less$/i.test(key)) {
-    return "词形提示：-less 常表示“没有、缺少”；先抓住前半部分，再想象把它拿走。";
+    return "-less 通常表示缺少前半部分；想象把那样东西从场景中拿走。";
   }
   if (/^[a-z][a-z'-]+able$/i.test(key)) {
-    return "词形提示：-able 常表示“能够……的”或“适合……的”；把它还原成一种能力来想。";
+    return "-able 通常表示‘能够……的’；先把它还原成对应动作。";
   }
   return "";
+}
+
+function expressionSeed(expression) {
+  return [...expression].reduce(
+    (seed, character) => (seed * 31 + character.codePointAt(0)) >>> 0,
+    0,
+  );
+}
+
+function createFallbackMemoryHook(expression, meaning, scene) {
+  const morphology = getMorphologyClue(expression);
+  if (morphology) {
+    return `词形路线：${morphology} 然后放回这个场景检验：${scene || meaning}。`;
+  }
+
+  if (/\s/.test(expression)) {
+    return `整块提取：不要逐词翻译 ${expression}。先回想“${scene || meaning}”，再一次说出完整短语。`;
+  }
+
+  const strategies = [
+    () => `一秒镜头：${scene || meaning}。画面出现时，只给它贴一个英文标签：${expression}。`,
+    () => `反向测试：遮住英文，只看“${meaning || scene}”，先说出 ${expression}，再用例句检查。`,
+    () => `动作定格：把“${scene || meaning}”停在最关键的一帧；这一帧的口令就是 ${expression}。`,
+    () => `单义入口：这次只用“${meaning || scene}”唤回 ${expression}，其他义项留到真正遇见时再扩展。`,
+  ];
+  return strategies[expressionSeed(expression) % strategies.length]();
 }
 
 export function createAutomaticMemoryHook(card) {
@@ -57,16 +66,9 @@ export function createAutomaticMemoryHook(card) {
   );
   if (!expression || (!meaning && !scene)) return "";
 
-  const parts = [];
-  const wordClue = getWordClue(expression);
-  if (wordClue) parts.push(wordClue);
-  if (meaning) parts.push(`核心只抓这一点：${meaning}。`);
-  if (scene && scene !== meaning) {
-    parts.push(`画面：${scene}。把 ${expression} 当作这个画面的英文标签。`);
-  } else if (meaning) {
-    parts.push(`把 ${expression} 和这个含义绑在同一个画面里。`);
-  }
-  return parts.join(" ");
+  const curated = getCuratedMemoryHook(expression);
+  if (curated) return curated;
+  return createFallbackMemoryHook(expression, meaning, scene);
 }
 
 export function enrichCardsWithAutomaticMemoryHooks(

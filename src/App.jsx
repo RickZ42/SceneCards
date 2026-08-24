@@ -163,6 +163,7 @@ function captureToCard(capture) {
     personalExample: capture.personalExample || "",
     exampleMeaning: capture.exampleMeaning || "",
     memoryHook: capture.memoryHook || "",
+    memoryHookSource: capture.memoryHook ? "curated" : undefined,
     source: capture.source || "Bob",
     tags: Array.from(new Set([...(capture.tags || []), "Bob"])),
     needsTarget: Boolean(capture.needsTarget),
@@ -224,6 +225,12 @@ function reconcileCapturedCards(previous, captures, deletedCaptureIds = new Set(
     const refreshesCapture =
       !existing.userEdited &&
       incoming.captureContentRevision > (existing.captureContentRevision || 0);
+    const refreshesMemoryHook =
+      Boolean(incoming.memoryHook) &&
+      incoming.captureContentRevision > (existing.captureContentRevision || 0) &&
+      (!existing.userEdited ||
+        existing.memoryHookSource === "automatic" ||
+        !(existing.memoryHook || "").trim());
     const enrichment = {
       pronunciation: refreshesCapture
         ? incoming.pronunciation
@@ -242,16 +249,25 @@ function reconcileCapturedCards(previous, captures, deletedCaptureIds = new Set(
       exampleMeaning: refreshesCapture
         ? incoming.exampleMeaning
         : existing.exampleMeaning || incoming.exampleMeaning,
-      memoryHook: refreshesCapture
-        ? incoming.memoryHook || existing.memoryHook
+      memoryHook: refreshesMemoryHook
+        ? incoming.memoryHook
         : existing.memoryHook || incoming.memoryHook,
+      memoryHookSource: refreshesMemoryHook
+        ? incoming.memoryHookSource
+        : existing.memoryHookSource || incoming.memoryHookSource,
     };
     const addsContext = Object.entries(enrichment).some(
       ([field, value]) => !existing[field] && Boolean(value),
     );
     const activatesDraft = isDraft(existing) && !isDraft(incoming);
     const addsCapture = captureIds.length !== (existing.captureIds || []).length;
-    if (addsContext || activatesDraft || addsCapture || refreshesCapture) {
+    if (
+      addsContext ||
+      activatesDraft ||
+      addsCapture ||
+      refreshesCapture ||
+      refreshesMemoryHook
+    ) {
       cards[existingIndex] = {
         ...existing,
         ...enrichment,

@@ -122,9 +122,17 @@ Each answer updates the next due time:
 - `Good`: 1 day, then 3 days, then adaptive intervals.
 - `Easy`: starts at 4 days and grows faster.
 
-After a card receives its third review rating, SceneCards adds a local memory
-cue when the card does not already have one. The cue combines a conservative
-word-form or word-family clue with the card's meaning and representative scene.
+Published cards use expression-specific memory cues from
+`src/curatedMemoryHooks.js`. Each distinct expression must have its own cue and
+may use a different route, such as morphology, contrast, a concrete image, a
+collocation, a directional diagram, or a personal scene. Run
+`scripts/apply-curated-memory-hooks.mjs` against a card-library JSON file after
+adding or revising curated cues; the script rejects missing cues and accidental
+cue reuse across different expressions.
+
+For a new card that has not been curated, the third review rating adds a local
+fallback cue. The fallback varies between morphology, phrase-level retrieval,
+reverse recall, and scene-based prompts instead of using one fixed paragraph.
 Existing manual memory cues are never replaced, and no card content is sent to
 an AI or external service for this feature.
 
