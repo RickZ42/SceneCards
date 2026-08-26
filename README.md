@@ -56,7 +56,8 @@ Read and write`. The token and password stay in that browser's local storage and
 are not included in SceneCards backups.
 
 Review events, due dates, intervals, ease, lapses, and the current queue position
-are encrypted in the `review-sync` branch with PBKDF2-SHA256 and AES-256-GCM.
+are encrypted as `review-state-v2.enc.json` in the `review-sync` branch with
+PBKDF2-SHA256 and AES-256-GCM.
 Card expressions, meanings, examples, GitHub tokens, and sync passwords are
 never written to that branch. The app merges review-event IDs and uses each
 card's newest review state, so opening either device does not replace newer work
@@ -65,6 +66,13 @@ from the other device.
 Sync runs after setup, after review changes settle, when the app regains focus or
 connectivity, when it moves to the background, and every five minutes while it
 remains open. The app continues to work offline and retries on the next trigger.
+
+If one device has the known-correct schedule, open sync settings on that device
+and choose `以这台设备的进度为准`. This writes a new encrypted reset generation.
+Other devices discard their older scheduling state when they first see that
+generation, adopt the authoritative queue and history, and then resume ordinary
+two-way merging. Older SceneCards clients write to the former v1 file and cannot
+undo a v2 authoritative reset.
 
 Speaker buttons play audio generated locally by the Mac's built-in British
 English voice. Generated WAV files are cached under the SceneCards data folder;

@@ -5,6 +5,8 @@ import {
   applyReviewDocument,
   createReviewDocument,
   mergeReviewDocuments,
+  overwriteRemoteReviewProgress,
+  replaceReviewDocument,
   syncReviewProgress,
 } from "./reviewSync.js";
 
@@ -125,6 +127,88 @@ test("GitHub payload is encrypted and can be read back with the same password", 
     assert.equal(second.pushed, false);
     assert.equal(putCount, 1);
     assert.equal(second.document.cardStates["card-1"].intervalDays, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("an authoritative reset makes another device adopt the complete computer schedule", async () => {
+  const originalFetch = globalThis.fetch;
+  let encryptedContent = "";
+  let putCount = 0;
+  globalThis.fetch = async (url, options = {}) => {
+    if (!options.method) {
+      if (!encryptedContent) return new Response("", { status: 404 });
+      return Response.json({ sha: "encrypted-sha", content: encryptedContent });
+    }
+    putCount += 1;
+    encryptedContent = JSON.parse(options.body).content;
+    return Response.json({ ok: true }, { status: 201 });
+  };
+
+  try {
+    const computerStore = {
+      cards: [
+        card({ intervalDays: 21, repetitions: 4 }),
+        card({
+          id: "card-2",
+          expression: "plausible",
+          dueAt: "2026-08-26T08:00:00.000Z",
+          intervalDays: 0,
+          repetitions: 0,
+          lastReviewedAt: null,
+        }),
+      ],
+      reviews: [review("computer-review", "2026-08-26T08:00:00.000Z")],
+    };
+    const phoneStore = {
+      cards: [
+        card({
+          intervalDays: 0,
+          repetitions: 0,
+          lapses: 3,
+          lastReviewedAt: "2026-08-28T08:00:00.000Z",
+        }),
+        card({
+          id: "card-2",
+          expression: "plausible",
+          intervalDays: 12,
+          repetitions: 3,
+          lastReviewedAt: "2026-08-28T09:00:00.000Z",
+        }),
+      ],
+      reviews: [review("phone-review", "2026-08-28T08:00:00.000Z", "again")],
+    };
+
+    const reset = await overwriteRemoteReviewProgress({
+      store: computerStore,
+      token: "test-token",
+      passphrase: "shared-test-password",
+    });
+    const incoming = await syncReviewProgress({
+      store: phoneStore,
+      token: "test-token",
+      passphrase: "shared-test-password",
+      acceptedResetId: "",
+    });
+    const replaced = replaceReviewDocument(phoneStore, incoming.document);
+
+    assert.equal(incoming.replaceLocal, true);
+    assert.equal(incoming.resetId, reset.resetId);
+    assert.equal(replaced.cards[0].intervalDays, 21);
+    assert.equal(replaced.cards[0].lapses, 0);
+    assert.equal(replaced.cards[1].intervalDays, 0);
+    assert.equal(replaced.cards[1].lastReviewedAt, null);
+    assert.deepEqual(replaced.reviews.map((item) => item.id), ["computer-review"]);
+
+    const settled = await syncReviewProgress({
+      store: replaced,
+      token: "test-token",
+      passphrase: "shared-test-password",
+      acceptedResetId: reset.resetId,
+    });
+    assert.equal(settled.replaceLocal, false);
+    assert.equal(putCount, 1);
   } finally {
     globalThis.fetch = originalFetch;
   }

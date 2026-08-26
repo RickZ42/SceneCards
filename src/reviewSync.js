@@ -2,7 +2,7 @@ const GITHUB_API_VERSION = "2026-03-10";
 
 export const REVIEW_SYNC_REPOSITORY = "RickZ42/SceneCards";
 export const REVIEW_SYNC_BRANCH = "review-sync";
-export const REVIEW_SYNC_PATH = "review-state.enc.json";
+export const REVIEW_SYNC_PATH = "review-state-v2.enc.json";
 
 const REVIEW_STATE_FIELDS = [
   "dueAt",
@@ -40,8 +40,8 @@ function normalizeReview(review) {
   };
 }
 
-function cardStateFromCard(card, reviews) {
-  if (!card?.id || !card.lastReviewedAt) return null;
+function cardStateFromCard(card, reviews, { includeUnreviewed = false } = {}) {
+  if (!card?.id || !card.dueAt || (!includeUnreviewed && !card.lastReviewedAt)) return null;
   const latestReview = latestReviewForCard(reviews, card.id);
   const state = {
     cardId: card.id,
@@ -58,7 +58,7 @@ function cardStateFromCard(card, reviews) {
 }
 
 function normalizeCardState(state) {
-  if (!state?.cardId || !state.lastReviewedAt) return null;
+  if (!state?.cardId || !state.dueAt) return null;
   const normalized = {
     cardId: String(state.cardId),
     lastReviewId: String(state.lastReviewId || ""),
@@ -107,21 +107,26 @@ function normalizeDocument(document) {
     Object.entries(cardStates).sort(([a], [b]) => compareText(a, b)),
   );
   return {
-    version: 1,
+    version: 2,
+    resetId: typeof document?.resetId === "string" ? document.resetId : "",
+    resetAt: typeof document?.resetAt === "string" ? document.resetAt : "",
     updatedAt: documentTimestamp(orderedCardStates, reviews),
     cardStates: orderedCardStates,
     reviews,
   };
 }
 
-export function createReviewDocument(store) {
+export function createReviewDocument(
+  store,
+  { includeUnreviewed = false, resetId = "", resetAt = "" } = {},
+) {
   const reviews = (store?.reviews || []).map(normalizeReview).filter(Boolean);
   const cardStates = {};
   for (const card of store?.cards || []) {
-    const state = cardStateFromCard(card, reviews);
+    const state = cardStateFromCard(card, reviews, { includeUnreviewed });
     if (state) cardStates[state.cardId] = state;
   }
-  return normalizeDocument({ cardStates, reviews });
+  return normalizeDocument({ cardStates, reviews, resetId, resetAt });
 }
 
 export function mergeReviewDocuments(localDocument, remoteDocument) {
@@ -145,7 +150,24 @@ export function mergeReviewDocuments(localDocument, remoteDocument) {
       : remoteState;
   }
 
-  return normalizeDocument({ cardStates, reviews: [...reviewsById.values()] });
+  const resetSource = compareText(local.resetAt, remote.resetAt) >= 0 ? local : remote;
+  return normalizeDocument({
+    cardStates,
+    reviews: [...reviewsById.values()],
+    resetId: resetSource.resetId,
+    resetAt: resetSource.resetAt,
+  });
+}
+
+function schedulingFromState(state) {
+  return Object.fromEntries(
+    REVIEW_STATE_FIELDS.map((field) => [
+      field,
+      field === "reviewQueueOrder" && state[field] === null
+        ? undefined
+        : state[field],
+    ]),
+  );
 }
 
 export function applyReviewDocument(store, document) {
@@ -156,17 +178,28 @@ export function applyReviewDocument(store, document) {
     const localState = cardStateFromCard(card, store.reviews || []);
     if (localState && compareCardStates(localState, state) > 0) return card;
 
-    const scheduling = Object.fromEntries(
-      REVIEW_STATE_FIELDS.map((field) => [
-        field,
-        field === "reviewQueueOrder" && state[field] === null
-          ? undefined
-          : state[field],
-      ]),
-    );
-    return { ...card, ...scheduling };
+    return { ...card, ...schedulingFromState(state) };
   });
   return { ...store, cards, reviews: merged.reviews };
+}
+
+export function replaceReviewDocument(store, document) {
+  const authoritative = normalizeDocument(document);
+  const cards = (store?.cards || []).map((card) => {
+    const state = authoritative.cardStates[card.id];
+    if (state) return { ...card, ...schedulingFromState(state) };
+    return {
+      ...card,
+      dueAt: card.createdAt || new Date().toISOString(),
+      intervalDays: 0,
+      ease: 2.5,
+      repetitions: 0,
+      lapses: 0,
+      lastReviewedAt: null,
+      reviewQueueOrder: undefined,
+    };
+  });
+  return { ...store, cards, reviews: authoritative.reviews };
 }
 
 export function reviewDocumentFingerprint(document) {
@@ -295,20 +328,66 @@ async function writeRemoteDocument(document, sha, token, passphrase) {
   return true;
 }
 
-export async function syncReviewProgress({ store, token, passphrase }) {
+export async function syncReviewProgress({
+  store,
+  token,
+  passphrase,
+  acceptedResetId = "",
+}) {
   const localDocument = createReviewDocument(store);
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const remote = await readRemoteDocument(token, passphrase);
+    if (
+      remote.document?.resetId &&
+      remote.document.resetId !== acceptedResetId
+    ) {
+      return {
+        document: remote.document,
+        pushed: false,
+        replaceLocal: true,
+        resetId: remote.document.resetId,
+      };
+    }
     const merged = mergeReviewDocuments(localDocument, remote.document);
     if (
       remote.document &&
       reviewDocumentFingerprint(merged) === reviewDocumentFingerprint(remote.document)
     ) {
-      return { document: merged, pushed: false };
+      return {
+        document: merged,
+        pushed: false,
+        replaceLocal: false,
+        resetId: merged.resetId,
+      };
     }
     if (await writeRemoteDocument(merged, remote.sha, token, passphrase)) {
-      return { document: merged, pushed: true };
+      return {
+        document: merged,
+        pushed: true,
+        replaceLocal: false,
+        resetId: merged.resetId,
+      };
     }
   }
   throw new Error("复习进度发生同步冲突，请稍后再试");
+}
+
+export async function overwriteRemoteReviewProgress({ store, token, passphrase }) {
+  const resetAt = new Date().toISOString();
+  const resetId = typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `reset-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const document = createReviewDocument(store, {
+    includeUnreviewed: true,
+    resetId,
+    resetAt,
+  });
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const remote = await readRemoteDocument(token, passphrase);
+    if (await writeRemoteDocument(document, remote.sha, token, passphrase)) {
+      return { document, resetId };
+    }
+  }
+  throw new Error("覆盖云端进度时发生冲突，请稍后再试");
 }

@@ -1208,12 +1208,32 @@ main {
   background: var(--coral);
 }
 
+.sync-authority {
+  display: grid;
+  gap: 7px;
+  padding: 13px;
+  border: 1px solid #cbd9e2;
+  border-radius: 6px;
+  background: var(--blue-soft);
+}
+
+.sync-authority .secondary-button {
+  width: 100%;
+  border-color: #9eb7c8;
+  background: white;
+}
+
+.sync-authority small {
+  color: #4f6675;
+}
+
 .sync-actions .danger-text {
   margin-right: auto;
   color: #a33128;
 }
 
-.primary-button:disabled {
+.primary-button:disabled,
+.secondary-button:disabled {
   cursor: wait;
   opacity: 0.68;
 }

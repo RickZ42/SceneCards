@@ -10,6 +10,7 @@ import Edit3 from "lucide-react/dist/esm/icons/edit-3.js";
 import Eye from "lucide-react/dist/esm/icons/eye.js";
 import Flame from "lucide-react/dist/esm/icons/flame.js";
 import Inbox from "lucide-react/dist/esm/icons/inbox.js";
+import Laptop from "lucide-react/dist/esm/icons/laptop.js";
 import Library from "lucide-react/dist/esm/icons/library.js";
 import Plus from "lucide-react/dist/esm/icons/plus.js";
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.js";
@@ -31,8 +32,10 @@ import {
 import {
   applyReviewDocument,
   createReviewDocument,
+  overwriteRemoteReviewProgress,
   REVIEW_SYNC_BRANCH,
   REVIEW_SYNC_REPOSITORY,
+  replaceReviewDocument,
   reviewDocumentFingerprint,
   syncReviewProgress,
 } from "./reviewSync.js";
@@ -470,9 +473,17 @@ function loadReviewSyncSettings() {
       token: typeof saved?.token === "string" ? saved.token : "",
       passphrase: typeof saved?.passphrase === "string" ? saved.passphrase : "",
       lastSyncedAt: typeof saved?.lastSyncedAt === "string" ? saved.lastSyncedAt : "",
+      acceptedResetId:
+        typeof saved?.acceptedResetId === "string" ? saved.acceptedResetId : "",
     };
   } catch {
-    return { enabled: false, token: "", passphrase: "", lastSyncedAt: "" };
+    return {
+      enabled: false,
+      token: "",
+      passphrase: "",
+      lastSyncedAt: "",
+      acceptedResetId: "",
+    };
   }
 }
 
@@ -633,21 +644,36 @@ function App() {
         store: storeRef.current,
         token: settings.token,
         passphrase: settings.passphrase,
+        acceptedResetId: settings.acceptedResetId || "",
       });
       setStore((previous) => {
-        const merged = applyReviewDocument(previous, result.document);
+        const merged = result.replaceLocal
+          ? replaceReviewDocument(previous, result.document)
+          : applyReviewDocument(previous, result.document);
         return {
           ...merged,
           cards: enrichCardsWithAutomaticMemoryHooks(merged.cards, merged.reviews),
         };
       });
       const completedAt = new Date().toISOString();
-      const savedSettings = { ...settings, lastSyncedAt: completedAt };
+      const savedSettings = {
+        ...settings,
+        lastSyncedAt: completedAt,
+        acceptedResetId: result.resetId || settings.acceptedResetId || "",
+      };
       syncSettingsRef.current = savedSettings;
       saveReviewSyncSettings(savedSettings);
       setSyncSettings(savedSettings);
-      setSyncStatus({ state: "synced", message: "复习进度已同步" });
-      if (announce) setToast("手机和电脑的复习进度已同步");
+      setSyncDraft((previous) => ({
+        ...previous,
+        lastSyncedAt: savedSettings.lastSyncedAt,
+        acceptedResetId: savedSettings.acceptedResetId,
+      }));
+      const successMessage = result.replaceLocal
+        ? "已采用另一台设备指定的权威进度"
+        : "复习进度已同步";
+      setSyncStatus({ state: "synced", message: successMessage });
+      if (announce) setToast(successMessage);
     } catch (error) {
       const message = error instanceof Error ? error.message : "复习进度同步失败";
       setSyncStatus({ state: "error", message });
@@ -1155,7 +1181,13 @@ function App() {
   function clearReviewSyncSettings() {
     const confirmed = window.confirm("关闭同步并清除这台设备上的令牌和同步密码？");
     if (!confirmed) return;
-    const cleared = { enabled: false, token: "", passphrase: "", lastSyncedAt: "" };
+    const cleared = {
+      enabled: false,
+      token: "",
+      passphrase: "",
+      lastSyncedAt: "",
+      acceptedResetId: "",
+    };
     localStorage.removeItem(REVIEW_SYNC_SETTINGS_KEY);
     syncSettingsRef.current = cleared;
     setSyncSettings(cleared);
@@ -1163,6 +1195,53 @@ function App() {
     setSyncStatus({ state: "idle", message: "" });
     setSyncModalOpen(false);
     setToast("已关闭这台设备的进度同步");
+  }
+
+  async function makeThisDeviceAuthoritative() {
+    const token = syncDraft.token.trim();
+    const passphrase = syncDraft.passphrase.trim();
+    if (!token || passphrase.length < 8) {
+      setSyncStatus({ state: "error", message: "请先保存有效的令牌和同步密码" });
+      return;
+    }
+    if (syncInFlightRef.current) return;
+    const confirmed = window.confirm(
+      "确定以这台设备的复习记录为准吗？其他设备下次同步时会采用这里的队列和复习进度。",
+    );
+    if (!confirmed) return;
+
+    const currentSettings = {
+      ...syncDraft,
+      enabled: true,
+      token,
+      passphrase,
+    };
+    syncInFlightRef.current = true;
+    setSyncStatus({ state: "syncing", message: "正在把这台设备设为权威进度" });
+    try {
+      const result = await overwriteRemoteReviewProgress({
+        store: storeRef.current,
+        token,
+        passphrase,
+      });
+      const savedSettings = {
+        ...currentSettings,
+        acceptedResetId: result.resetId,
+        lastSyncedAt: new Date().toISOString(),
+      };
+      syncSettingsRef.current = savedSettings;
+      saveReviewSyncSettings(savedSettings);
+      setSyncSettings(savedSettings);
+      setSyncDraft(savedSettings);
+      setSyncStatus({ state: "synced", message: "这台设备现在是权威进度" });
+      setToast("已用这台设备的记录重置同步进度");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "无法重置同步进度";
+      setSyncStatus({ state: "error", message });
+      setToast(message);
+    } finally {
+      syncInFlightRef.current = false;
+    }
   }
 
   return (
@@ -1311,6 +1390,7 @@ function App() {
           onClose={() => setSyncModalOpen(false)}
           onSave={saveAndRunReviewSync}
           onClear={clearReviewSyncSettings}
+          onMakeAuthoritative={makeThisDeviceAuthoritative}
         />
       )}
 
@@ -1321,7 +1401,15 @@ function App() {
   );
 }
 
-function ReviewSyncModal({ draft, status, onChange, onClose, onSave, onClear }) {
+function ReviewSyncModal({
+  draft,
+  status,
+  onChange,
+  onClose,
+  onSave,
+  onClear,
+  onMakeAuthoritative,
+}) {
   function update(field, value) {
     onChange((previous) => ({ ...previous, [field]: value }));
   }
@@ -1381,6 +1469,21 @@ function ReviewSyncModal({ draft, status, onChange, onClose, onSave, onClear }) 
             <span />
             {status.message || (draft.enabled ? "自动同步已开启" : "尚未开启")}
           </div>
+
+          {draft.enabled && (
+            <div className="sync-authority">
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={status.state === "syncing"}
+                onClick={onMakeAuthoritative}
+              >
+                <Laptop size={17} />
+                以这台设备的进度为准
+              </button>
+              <small>会让其他设备在下次同步时采用这里的复习队列。</small>
+            </div>
+          )}
 
           <div className="modal-actions sync-actions">
             {draft.enabled && (
