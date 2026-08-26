@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ArchiveRestore from "lucide-react/dist/esm/icons/archive-restore.js";
 import BookOpen from "lucide-react/dist/esm/icons/book-open.js";
 import CalendarClock from "lucide-react/dist/esm/icons/calendar-clock.js";
 import Check from "lucide-react/dist/esm/icons/check.js";
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.js";
+import Cloud from "lucide-react/dist/esm/icons/cloud.js";
 import Download from "lucide-react/dist/esm/icons/download.js";
 import Edit3 from "lucide-react/dist/esm/icons/edit-3.js";
 import Eye from "lucide-react/dist/esm/icons/eye.js";
@@ -11,6 +12,7 @@ import Flame from "lucide-react/dist/esm/icons/flame.js";
 import Inbox from "lucide-react/dist/esm/icons/inbox.js";
 import Library from "lucide-react/dist/esm/icons/library.js";
 import Plus from "lucide-react/dist/esm/icons/plus.js";
+import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.js";
 import Search from "lucide-react/dist/esm/icons/search.js";
 import Sparkles from "lucide-react/dist/esm/icons/sparkles.js";
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js";
@@ -26,8 +28,17 @@ import {
   compareReviewQueueCards,
   moveCardToReviewQueueEnd,
 } from "./reviewQueue.js";
+import {
+  applyReviewDocument,
+  createReviewDocument,
+  REVIEW_SYNC_BRANCH,
+  REVIEW_SYNC_REPOSITORY,
+  reviewDocumentFingerprint,
+  syncReviewProgress,
+} from "./reviewSync.js";
 
 const STORAGE_KEY = "scenecards.data.v1";
+const REVIEW_SYNC_SETTINGS_KEY = "scenecards.review-sync.v1";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BUNDLED_CONTENT_REVISION = 3;
 const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
@@ -451,6 +462,24 @@ function loadStore() {
   return mergeBundledCards({ cards: [], reviews: [], installedSeeds: [] });
 }
 
+function loadReviewSyncSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(REVIEW_SYNC_SETTINGS_KEY));
+    return {
+      enabled: Boolean(saved?.enabled && saved?.token && saved?.passphrase),
+      token: typeof saved?.token === "string" ? saved.token : "",
+      passphrase: typeof saved?.passphrase === "string" ? saved.passphrase : "",
+      lastSyncedAt: typeof saved?.lastSyncedAt === "string" ? saved.lastSyncedAt : "",
+    };
+  } catch {
+    return { enabled: false, token: "", passphrase: "", lastSyncedAt: "" };
+  }
+}
+
+function saveReviewSyncSettings(settings) {
+  localStorage.setItem(REVIEW_SYNC_SETTINGS_KEY, JSON.stringify(settings));
+}
+
 function localDateKey(value = new Date()) {
   const date = new Date(value);
   const year = date.getFullYear();
@@ -572,12 +601,102 @@ function App() {
   const [filter, setFilter] = useState("all");
   const [toast, setToast] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const [syncSettings, setSyncSettings] = useState(loadReviewSyncSettings);
+  const [syncDraft, setSyncDraft] = useState(() => loadReviewSyncSettings());
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState({ state: "idle", message: "" });
   const importRef = useRef(null);
   const audioRef = useRef(null);
+  const storeRef = useRef(store);
+  const syncSettingsRef = useRef(syncSettings);
+  const syncInFlightRef = useRef(false);
+  const syncQueuedRef = useRef(false);
+  const syncRunnerRef = useRef(null);
+
+  storeRef.current = store;
+  syncSettingsRef.current = syncSettings;
+
+  const runReviewSync = useCallback(async ({ announce = false } = {}) => {
+    const settings = syncSettingsRef.current;
+    if (!settings.enabled || !settings.token || !settings.passphrase || !navigator.onLine) {
+      return;
+    }
+    if (syncInFlightRef.current) {
+      syncQueuedRef.current = true;
+      return;
+    }
+
+    syncInFlightRef.current = true;
+    setSyncStatus({ state: "syncing", message: "正在同步复习进度" });
+    try {
+      const result = await syncReviewProgress({
+        store: storeRef.current,
+        token: settings.token,
+        passphrase: settings.passphrase,
+      });
+      setStore((previous) => {
+        const merged = applyReviewDocument(previous, result.document);
+        return {
+          ...merged,
+          cards: enrichCardsWithAutomaticMemoryHooks(merged.cards, merged.reviews),
+        };
+      });
+      const completedAt = new Date().toISOString();
+      const savedSettings = { ...settings, lastSyncedAt: completedAt };
+      syncSettingsRef.current = savedSettings;
+      saveReviewSyncSettings(savedSettings);
+      setSyncSettings(savedSettings);
+      setSyncStatus({ state: "synced", message: "复习进度已同步" });
+      if (announce) setToast("手机和电脑的复习进度已同步");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "复习进度同步失败";
+      setSyncStatus({ state: "error", message });
+      if (announce) setToast(message);
+    } finally {
+      syncInFlightRef.current = false;
+      if (syncQueuedRef.current) {
+        syncQueuedRef.current = false;
+        window.setTimeout(() => syncRunnerRef.current?.(), 0);
+      }
+    }
+  }, []);
+
+  syncRunnerRef.current = runReviewSync;
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
   }, [store]);
+
+  const reviewSyncSignature = useMemo(
+    () => reviewDocumentFingerprint(createReviewDocument(store)),
+    [store],
+  );
+
+  useEffect(() => {
+    if (!syncSettings.enabled) return undefined;
+    const sync = () => syncRunnerRef.current?.();
+    const syncWhenHidden = () => {
+      if (document.visibilityState === "hidden") sync();
+    };
+
+    sync();
+    const interval = window.setInterval(sync, 5 * 60 * 1000);
+    window.addEventListener("focus", sync);
+    window.addEventListener("online", sync);
+    document.addEventListener("visibilitychange", syncWhenHidden);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", sync);
+      window.removeEventListener("online", sync);
+      document.removeEventListener("visibilitychange", syncWhenHidden);
+    };
+  }, [syncSettings.enabled, syncSettings.passphrase, syncSettings.token]);
+
+  useEffect(() => {
+    if (!syncSettings.enabled) return undefined;
+    const timeout = window.setTimeout(() => syncRunnerRef.current?.(), 20_000);
+    return () => window.clearTimeout(timeout);
+  }, [reviewSyncSignature, syncSettings.enabled]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -1001,6 +1120,51 @@ function App() {
     reader.readAsText(file);
   }
 
+  function openSyncSettings() {
+    setSyncDraft(syncSettings);
+    setSyncModalOpen(true);
+  }
+
+  function saveAndRunReviewSync(event) {
+    event.preventDefault();
+    const token = syncDraft.token.trim();
+    const passphrase = syncDraft.passphrase.trim();
+    if (!token) {
+      setSyncStatus({ state: "error", message: "请输入 GitHub 令牌" });
+      return;
+    }
+    if (passphrase.length < 8) {
+      setSyncStatus({ state: "error", message: "同步密码至少需要 8 个字符" });
+      return;
+    }
+
+    const nextSettings = {
+      ...syncDraft,
+      enabled: true,
+      token,
+      passphrase,
+    };
+    syncSettingsRef.current = nextSettings;
+    saveReviewSyncSettings(nextSettings);
+    setSyncSettings(nextSettings);
+    setSyncDraft(nextSettings);
+    setSyncStatus({ state: "idle", message: "" });
+    syncRunnerRef.current?.({ announce: true });
+  }
+
+  function clearReviewSyncSettings() {
+    const confirmed = window.confirm("关闭同步并清除这台设备上的令牌和同步密码？");
+    if (!confirmed) return;
+    const cleared = { enabled: false, token: "", passphrase: "", lastSyncedAt: "" };
+    localStorage.removeItem(REVIEW_SYNC_SETTINGS_KEY);
+    syncSettingsRef.current = cleared;
+    setSyncSettings(cleared);
+    setSyncDraft(cleared);
+    setSyncStatus({ state: "idle", message: "" });
+    setSyncModalOpen(false);
+    setToast("已关闭这台设备的进度同步");
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -1015,6 +1179,13 @@ function App() {
         </div>
 
         <div className="header-actions">
+          <IconButton
+            label="学习进度同步"
+            className={`sync-button ${syncSettings.enabled ? syncStatus.state : "off"}`}
+            onClick={openSyncSettings}
+          >
+            <Cloud size={19} />
+          </IconButton>
           <IconButton label="导入备份" onClick={() => importRef.current?.click()}>
             <Upload size={19} />
           </IconButton>
@@ -1132,9 +1303,99 @@ function App() {
         />
       )}
 
+      {syncModalOpen && (
+        <ReviewSyncModal
+          draft={syncDraft}
+          status={syncStatus}
+          onChange={setSyncDraft}
+          onClose={() => setSyncModalOpen(false)}
+          onSave={saveAndRunReviewSync}
+          onClear={clearReviewSyncSettings}
+        />
+      )}
+
       <div className={`toast ${toast ? "visible" : ""}`} aria-live="polite">
         {toast}
       </div>
+    </div>
+  );
+}
+
+function ReviewSyncModal({ draft, status, onChange, onClose, onSave, onClear }) {
+  function update(field, value) {
+    onChange((previous) => ({ ...previous, [field]: value }));
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="card-modal sync-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sync-modal-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="modal-header">
+          <div>
+            <span>SYNC</span>
+            <h2 id="sync-modal-title">学习进度同步</h2>
+          </div>
+          <IconButton label="关闭" onClick={onClose}><X size={20} /></IconButton>
+        </div>
+
+        <form onSubmit={onSave}>
+          <div className="sync-destination">
+            <Cloud size={20} />
+            <div>
+              <strong>{REVIEW_SYNC_REPOSITORY}</strong>
+              <span>{REVIEW_SYNC_BRANCH}</span>
+            </div>
+          </div>
+          <label>
+            <span>GitHub 令牌</span>
+            <input
+              required
+              type="password"
+              autoComplete="off"
+              value={draft.token}
+              onChange={(event) => update("token", event.target.value)}
+              placeholder="github_pat_..."
+            />
+            <small>仅需这个仓库的 Contents 读写权限。</small>
+          </label>
+          <label>
+            <span>同步密码</span>
+            <input
+              required
+              minLength={8}
+              type="password"
+              autoComplete="current-password"
+              value={draft.passphrase}
+              onChange={(event) => update("passphrase", event.target.value)}
+              placeholder="手机和电脑填写同一个密码"
+            />
+            <small>密码只保存在当前设备，用于加密 GitHub 上的复习记录。</small>
+          </label>
+
+          <div className={`sync-status ${status.state}`} aria-live="polite">
+            <span />
+            {status.message || (draft.enabled ? "自动同步已开启" : "尚未开启")}
+          </div>
+
+          <div className="modal-actions sync-actions">
+            {draft.enabled && (
+              <button className="text-button danger-text" type="button" onClick={onClear}>
+                清除本机凭据
+              </button>
+            )}
+            <button className="secondary-button" type="button" onClick={onClose}>取消</button>
+            <button className="primary-button" type="submit" disabled={status.state === "syncing"}>
+              <RefreshCw size={17} />
+              {status.state === "syncing" ? "同步中" : "保存并同步"}
+            </button>
+          </div>
+        </form>
+      </section>
     </div>
   );
 }

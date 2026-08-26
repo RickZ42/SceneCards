@@ -149,6 +149,39 @@ textarea:focus-visible {
   background: var(--coral-soft);
 }
 
+.sync-button {
+  position: relative;
+}
+
+.sync-button::after {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 7px;
+  height: 7px;
+  content: "";
+  border: 1.5px solid white;
+  border-radius: 50%;
+  background: #9da6a3;
+}
+
+.sync-button.synced::after {
+  background: var(--teal);
+}
+
+.sync-button.syncing::after {
+  background: var(--gold);
+}
+
+.sync-button.error::after {
+  background: var(--coral);
+}
+
+.sync-button.syncing svg,
+.sync-status.syncing + .sync-actions .primary-button svg {
+  animation: sync-spin 1.1s linear infinite;
+}
+
 .primary-button,
 .secondary-button,
 .text-button {
@@ -1058,6 +1091,12 @@ main {
   font-weight: 800;
 }
 
+.card-modal label small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .card-modal input,
 .card-modal select,
 .card-modal textarea {
@@ -1095,6 +1134,94 @@ main {
   justify-content: flex-end;
   gap: 9px;
   padding-top: 4px;
+}
+
+.sync-modal {
+  width: min(520px, 100%);
+}
+
+.sync-destination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f6f8f7;
+}
+
+.sync-destination svg {
+  color: var(--blue);
+}
+
+.sync-destination div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.sync-destination strong,
+.sync-destination span {
+  overflow-wrap: anywhere;
+}
+
+.sync-destination span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 9px 11px;
+  color: #495450;
+  border-radius: 5px;
+  background: #f1f4f2;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.sync-status > span {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #9da6a3;
+}
+
+.sync-status.synced > span {
+  background: var(--teal);
+}
+
+.sync-status.syncing > span {
+  background: var(--gold);
+}
+
+.sync-status.error {
+  color: #943a33;
+  background: var(--coral-soft);
+}
+
+.sync-status.error > span {
+  background: var(--coral);
+}
+
+.sync-actions .danger-text {
+  margin-right: auto;
+  color: #a33128;
+}
+
+.primary-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+@keyframes sync-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .toast {
@@ -1178,8 +1305,27 @@ main {
     display: none;
   }
 
+  .brand {
+    gap: 8px;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+  }
+
+  .header-actions {
+    gap: 4px;
+  }
+
+  .header-actions .icon-button,
+  .header-actions .primary-button.compact {
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+  }
+
   .primary-button.compact {
-    width: 38px;
     padding: 0;
   }
 
@@ -1318,6 +1464,27 @@ main {
 
   .form-grid.card-basics {
     grid-template-columns: 1fr;
+  }
+
+  .sync-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sync-actions .danger-text {
+    grid-column: 1 / -1;
+    margin-right: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .brand strong {
+    font-size: 15px;
+  }
+
+  .topbar {
+    padding-right: 10px;
+    padding-left: 10px;
   }
 }
 

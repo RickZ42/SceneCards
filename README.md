@@ -32,11 +32,14 @@ voice; the Bob inbox remains an optional Mac-only integration.
 
 To move an existing collection, download a SceneCards JSON backup on the Mac,
 send it to the iPhone, and use the upload button in the installed app. The two
-devices then keep independent local copies unless backups are moved manually.
+devices keep independent local copies unless backups are moved manually or
+encrypted review-progress sync is enabled on both devices.
 
 The app stores cards and review history in the current browser's local storage.
 Use the download button in the header to create a portable JSON backup, and the
-upload button to restore one.
+upload button to restore one. Optional encrypted progress sync can keep the
+review schedule aligned across browsers without putting card text or readable
+review history in the public repository.
 
 The public card library is stored in `public/data/cards.json` and is deployed
 with GitHub Pages. The app checks this library when it opens, regains focus, or
@@ -44,6 +47,24 @@ comes back online. Published card-content revisions are merged into each
 browser, while review history, scheduling, dismissals, and user-edited card
 content remain local to that browser. The public library must never contain
 tokens, credentials, or private review data.
+
+## Encrypted review-progress sync
+
+Use the cloud button on each device to enter the same sync password and a
+fine-grained GitHub token restricted to `RickZ42/SceneCards` with `Contents:
+Read and write`. The token and password stay in that browser's local storage and
+are not included in SceneCards backups.
+
+Review events, due dates, intervals, ease, lapses, and the current queue position
+are encrypted in the `review-sync` branch with PBKDF2-SHA256 and AES-256-GCM.
+Card expressions, meanings, examples, GitHub tokens, and sync passwords are
+never written to that branch. The app merges review-event IDs and uses each
+card's newest review state, so opening either device does not replace newer work
+from the other device.
+
+Sync runs after setup, after review changes settle, when the app regains focus or
+connectivity, when it moves to the background, and every five minutes while it
+remains open. The app continues to work offline and retries on the next trigger.
 
 Speaker buttons play audio generated locally by the Mac's built-in British
 English voice. Generated WAV files are cached under the SceneCards data folder;
