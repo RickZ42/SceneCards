@@ -149,11 +149,13 @@ textarea:focus-visible {
   background: var(--coral-soft);
 }
 
-.sync-button {
+.sync-button,
+.mobile-inbox-button {
   position: relative;
 }
 
-.sync-button::after {
+.sync-button::after,
+.mobile-inbox-button::after {
   position: absolute;
   right: 4px;
   bottom: 4px;
@@ -165,19 +167,23 @@ textarea:focus-visible {
   background: #9da6a3;
 }
 
-.sync-button.synced::after {
+.sync-button.synced::after,
+.mobile-inbox-button.synced::after {
   background: var(--teal);
 }
 
-.sync-button.syncing::after {
+.sync-button.syncing::after,
+.mobile-inbox-button.syncing::after {
   background: var(--gold);
 }
 
-.sync-button.error::after {
+.sync-button.error::after,
+.mobile-inbox-button.error::after {
   background: var(--coral);
 }
 
 .sync-button.syncing svg,
+.mobile-inbox-button.syncing svg,
 .sync-status.syncing + .sync-actions .primary-button svg {
   animation: sync-spin 1.1s linear infinite;
 }
@@ -1140,6 +1146,18 @@ main {
   width: min(520px, 100%);
 }
 
+.quick-capture-modal {
+  width: min(560px, 100%);
+}
+
+.quick-capture-modal textarea:first-of-type {
+  min-height: 116px;
+}
+
+.quick-capture-actions {
+  justify-content: space-between;
+}
+
 .sync-destination {
   display: flex;
   align-items: center;
@@ -1440,7 +1458,27 @@ main {
   }
 
   .inbox-row .row-actions {
+    width: 100%;
+    grid-column: 1;
+    grid-row: auto;
     justify-content: flex-start;
+  }
+
+  .inbox-row .row-actions .primary-button {
+    flex: 1;
+  }
+
+  .inbox-copy > div {
+    display: grid;
+    gap: 7px;
+  }
+
+  .inbox-copy h2 {
+    font-size: 21px;
+  }
+
+  .inbox-copy .word-meta {
+    display: flex;
   }
 
   .library-row {

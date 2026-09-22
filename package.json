@@ -6,13 +6,15 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build": "vite build",
-    "test": "node --test src/*.test.js",
+    "test": "node --test src/*.test.js worker/*.test.js",
     "prestart": "vite build",
     "start": "node server.mjs",
     "preview": "vite preview",
     "plugin:pack": "sh bob-plugin/pack.sh",
     "service:install": "sh scripts/install-macos-service.sh",
-    "service:uninstall": "sh scripts/uninstall-macos-service.sh"
+    "service:uninstall": "sh scripts/uninstall-macos-service.sh",
+    "worker:dev": "wrangler dev --config worker/wrangler.jsonc",
+    "worker:deploy": "wrangler deploy --config worker/wrangler.jsonc"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -21,6 +23,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.0.5"
+    "vite": "^6.0.5",
+    "wrangler": "^4.136.1"
   }
 }

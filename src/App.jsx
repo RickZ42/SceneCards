@@ -15,11 +15,13 @@ import Library from "lucide-react/dist/esm/icons/library.js";
 import Plus from "lucide-react/dist/esm/icons/plus.js";
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.js";
 import Search from "lucide-react/dist/esm/icons/search.js";
+import Smartphone from "lucide-react/dist/esm/icons/smartphone.js";
 import Sparkles from "lucide-react/dist/esm/icons/sparkles.js";
 import Trash2 from "lucide-react/dist/esm/icons/trash-2.js";
 import Upload from "lucide-react/dist/esm/icons/upload.js";
 import Volume2 from "lucide-react/dist/esm/icons/volume-2.js";
 import X from "lucide-react/dist/esm/icons/x.js";
+import Zap from "lucide-react/dist/esm/icons/zap.js";
 import {
   createAutomaticMemoryHook,
   enrichCardsWithAutomaticMemoryHooks,
@@ -39,6 +41,13 @@ import {
   reviewDocumentFingerprint,
   syncReviewProgress,
 } from "./reviewSync.js";
+import {
+  createMobileCapture,
+  fetchMobileCaptures,
+  MOBILE_INBOX_SETTINGS_KEY,
+  normalizeMobileInboxSettings,
+  pushMobileCapture,
+} from "./mobileInbox.js";
 
 const STORAGE_KEY = "scenecards.data.v1";
 const REVIEW_SYNC_SETTINGS_KEY = "scenecards.review-sync.v1";
@@ -139,6 +148,12 @@ const emptyForm = {
   tags: "",
 };
 
+const emptyQuickCapture = {
+  text: "",
+  expression: "",
+  meaning: "",
+};
+
 function isDraft(card) {
   return card.status === "draft";
 }
@@ -179,7 +194,10 @@ function captureToCard(capture) {
     memoryHook: capture.memoryHook || "",
     memoryHookSource: capture.memoryHook ? "curated" : undefined,
     source: capture.source || "Bob",
-    tags: Array.from(new Set([...(capture.tags || []), "Bob"])),
+    tags: Array.from(new Set([
+      ...(capture.tags || []),
+      (capture.source || "").startsWith("Bob") ? "Bob" : null,
+    ].filter(Boolean))),
     needsTarget: Boolean(capture.needsTarget),
     createdAt: now,
     updatedAt: now,
@@ -491,6 +509,20 @@ function saveReviewSyncSettings(settings) {
   localStorage.setItem(REVIEW_SYNC_SETTINGS_KEY, JSON.stringify(settings));
 }
 
+function loadMobileInboxSettings() {
+  try {
+    return normalizeMobileInboxSettings(
+      JSON.parse(localStorage.getItem(MOBILE_INBOX_SETTINGS_KEY)),
+    );
+  } catch {
+    return normalizeMobileInboxSettings();
+  }
+}
+
+function saveMobileInboxSettings(settings) {
+  localStorage.setItem(MOBILE_INBOX_SETTINGS_KEY, JSON.stringify(settings));
+}
+
 function localDateKey(value = new Date()) {
   const date = new Date(value);
   const year = date.getFullYear();
@@ -616,6 +648,12 @@ function App() {
   const [syncDraft, setSyncDraft] = useState(() => loadReviewSyncSettings());
   const [syncModalOpen, setSyncModalOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ state: "idle", message: "" });
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
+  const [quickCapture, setQuickCapture] = useState(emptyQuickCapture);
+  const [mobileInboxSettings, setMobileInboxSettings] = useState(loadMobileInboxSettings);
+  const [mobileInboxDraft, setMobileInboxDraft] = useState(loadMobileInboxSettings);
+  const [mobileInboxModalOpen, setMobileInboxModalOpen] = useState(false);
+  const [mobileInboxStatus, setMobileInboxStatus] = useState({ state: "idle", message: "" });
   const importRef = useRef(null);
   const audioRef = useRef(null);
   const storeRef = useRef(store);
@@ -623,9 +661,12 @@ function App() {
   const syncInFlightRef = useRef(false);
   const syncQueuedRef = useRef(false);
   const syncRunnerRef = useRef(null);
+  const mobileInboxSettingsRef = useRef(mobileInboxSettings);
+  const mobileInboxInFlightRef = useRef(false);
 
   storeRef.current = store;
   syncSettingsRef.current = syncSettings;
+  mobileInboxSettingsRef.current = mobileInboxSettings;
 
   const runReviewSync = useCallback(async ({ announce = false } = {}) => {
     const settings = syncSettingsRef.current;
@@ -688,6 +729,32 @@ function App() {
   }, []);
 
   syncRunnerRef.current = runReviewSync;
+
+  const runMobileInboxSync = useCallback(async ({ announce = false } = {}) => {
+    const settings = mobileInboxSettingsRef.current;
+    if (!settings.enabled || !settings.endpoint || !settings.key || !navigator.onLine) return;
+    if (mobileInboxInFlightRef.current) return;
+
+    mobileInboxInFlightRef.current = true;
+    setMobileInboxStatus({ state: "syncing", message: "正在读取手机收件箱" });
+    try {
+      const captures = await fetchMobileCaptures(settings);
+      setStore((previous) => reconcileCapturedCards(previous, captures));
+      const saved = { ...settings, lastSyncedAt: new Date().toISOString() };
+      mobileInboxSettingsRef.current = saved;
+      saveMobileInboxSettings(saved);
+      setMobileInboxSettings(saved);
+      setMobileInboxDraft(saved);
+      setMobileInboxStatus({ state: "synced", message: "手机收件箱已同步" });
+      if (announce) setToast(`手机收件箱已同步：${captures.length} 条记录`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "手机收件箱同步失败";
+      setMobileInboxStatus({ state: "error", message });
+      if (announce) setToast(message);
+    } finally {
+      mobileInboxInFlightRef.current = false;
+    }
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
@@ -760,6 +827,20 @@ function App() {
       window.removeEventListener("online", syncPublishedCards);
     };
   }, []);
+
+  useEffect(() => {
+    if (!mobileInboxSettings.enabled) return undefined;
+    const sync = () => runMobileInboxSync();
+    sync();
+    const interval = window.setInterval(sync, 60_000);
+    window.addEventListener("focus", sync);
+    window.addEventListener("online", sync);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", sync);
+      window.removeEventListener("online", sync);
+    };
+  }, [mobileInboxSettings.enabled, mobileInboxSettings.endpoint, mobileInboxSettings.key, runMobileInboxSync]);
 
   useEffect(() => {
     if (!hasLocalMacBridge()) return undefined;
@@ -1151,6 +1232,107 @@ function App() {
     setSyncModalOpen(true);
   }
 
+  function openQuickCapture() {
+    setQuickCapture(emptyQuickCapture);
+    setQuickCaptureOpen(true);
+  }
+
+  async function saveQuickCapture(event) {
+    event.preventDefault();
+    if (!quickCapture.text.trim()) return;
+
+    const capture = createMobileCapture({
+      id: createId(),
+      text: quickCapture.text,
+      expression: quickCapture.expression,
+      meaning: quickCapture.meaning,
+      source: "快速收词",
+    });
+    setStore((previous) => reconcileCapturedCards(previous, [capture]));
+    setQuickCaptureOpen(false);
+    setQuickCapture(emptyQuickCapture);
+    setView("inbox");
+
+    const settings = mobileInboxSettingsRef.current;
+    if (!settings.enabled) {
+      setToast("已存到这台设备的收件箱");
+      return;
+    }
+    try {
+      await pushMobileCapture(settings, capture);
+      setToast("已加入手机收件箱，其他设备会自动收到");
+    } catch (error) {
+      setToast(`已保存在本机；${error instanceof Error ? error.message : "云端发送失败"}`);
+    }
+  }
+
+  function openFullCardFromCapture() {
+    const selectedText = quickCapture.text.trim();
+    setForm({
+      ...emptyForm,
+      expression: quickCapture.expression.trim() || (looksLikeSentence(selectedText) ? "" : selectedText),
+      meaning: quickCapture.meaning.trim(),
+      originalLine: looksLikeSentence(selectedText) ? selectedText : "",
+      source: "快速收词",
+      tags: "mobile, capture",
+    });
+    setEditingId(null);
+    setQuickCaptureOpen(false);
+    setModalOpen(true);
+  }
+
+  function openMobileInboxSettings() {
+    setMobileInboxDraft(mobileInboxSettings);
+    setMobileInboxModalOpen(true);
+  }
+
+  function saveAndRunMobileInboxSync(event) {
+    event.preventDefault();
+    const endpoint = mobileInboxDraft.endpoint.trim().replace(/\/$/, "");
+    const key = mobileInboxDraft.key.trim();
+    let parsed;
+    try {
+      parsed = new URL(endpoint);
+    } catch {
+      setMobileInboxStatus({ state: "error", message: "请输入有效的收件箱地址" });
+      return;
+    }
+    const localDevelopment = ["localhost", "127.0.0.1"].includes(parsed.hostname);
+    if (parsed.protocol !== "https:" && !localDevelopment) {
+      setMobileInboxStatus({ state: "error", message: "手机收件箱必须使用 HTTPS" });
+      return;
+    }
+    if (key.length < 24) {
+      setMobileInboxStatus({ state: "error", message: "收件箱密钥无效" });
+      return;
+    }
+
+    const saved = normalizeMobileInboxSettings({
+      ...mobileInboxDraft,
+      enabled: true,
+      endpoint,
+      key,
+    });
+    mobileInboxSettingsRef.current = saved;
+    saveMobileInboxSettings(saved);
+    setMobileInboxSettings(saved);
+    setMobileInboxDraft(saved);
+    setMobileInboxStatus({ state: "idle", message: "" });
+    runMobileInboxSync({ announce: true });
+  }
+
+  function clearMobileInboxSettings() {
+    if (!window.confirm("关闭手机收词同步并清除这台设备上的收件箱密钥？")) return;
+    const cleared = normalizeMobileInboxSettings();
+    localStorage.removeItem(MOBILE_INBOX_SETTINGS_KEY);
+    mobileInboxSettingsRef.current = cleared;
+    setMobileInboxSettings(cleared);
+    setMobileInboxDraft(cleared);
+    setMobileInboxStatus({ state: "idle", message: "" });
+    setMobileInboxModalOpen(false);
+    setToast("已关闭手机收词同步");
+  }
+
   function saveAndRunReviewSync(event) {
     event.preventDefault();
     const token = syncDraft.token.trim();
@@ -1259,6 +1441,13 @@ function App() {
 
         <div className="header-actions">
           <IconButton
+            label="手机收词同步"
+            className={`mobile-inbox-button ${mobileInboxSettings.enabled ? mobileInboxStatus.state : "off"}`}
+            onClick={openMobileInboxSettings}
+          >
+            <Smartphone size={19} />
+          </IconButton>
+          <IconButton
             label="学习进度同步"
             className={`sync-button ${syncSettings.enabled ? syncStatus.state : "off"}`}
             onClick={openSyncSettings}
@@ -1281,12 +1470,12 @@ function App() {
           <button
             className="primary-button compact"
             type="button"
-            aria-label="添加卡片"
-            title="添加卡片"
-            onClick={openNewCard}
+            aria-label="快速收词"
+            title="快速收词"
+            onClick={openQuickCapture}
           >
-            <Plus size={18} />
-            <span>添加卡片</span>
+            <Zap size={18} />
+            <span>快速收词</span>
           </button>
         </div>
       </header>
@@ -1315,7 +1504,7 @@ function App() {
           onClick={() => setView("inbox")}
         >
           <Inbox size={18} />
-          Bob 收件箱
+          收件箱
           {draftCards.length > 0 && <span className="count-badge">{draftCards.length}</span>}
         </button>
       </nav>
@@ -1382,6 +1571,16 @@ function App() {
         />
       )}
 
+      {quickCaptureOpen && (
+        <QuickCaptureModal
+          form={quickCapture}
+          onChange={setQuickCapture}
+          onClose={() => setQuickCaptureOpen(false)}
+          onSave={saveQuickCapture}
+          onOpenFull={openFullCardFromCapture}
+        />
+      )}
+
       {syncModalOpen && (
         <ReviewSyncModal
           draft={syncDraft}
@@ -1394,9 +1593,161 @@ function App() {
         />
       )}
 
+      {mobileInboxModalOpen && (
+        <MobileInboxModal
+          draft={mobileInboxDraft}
+          status={mobileInboxStatus}
+          onChange={setMobileInboxDraft}
+          onClose={() => setMobileInboxModalOpen(false)}
+          onSave={saveAndRunMobileInboxSync}
+          onClear={clearMobileInboxSettings}
+        />
+      )}
+
       <div className={`toast ${toast ? "visible" : ""}`} aria-live="polite">
         {toast}
       </div>
+    </div>
+  );
+}
+
+function QuickCaptureModal({ form, onChange, onClose, onSave, onOpenFull }) {
+  function update(field, value) {
+    onChange((previous) => ({ ...previous, [field]: value }));
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="card-modal quick-capture-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="quick-capture-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="modal-header">
+          <div>
+            <span>QUICK CAPTURE</span>
+            <h2 id="quick-capture-title">快速收词</h2>
+          </div>
+          <IconButton label="关闭" onClick={onClose}><X size={20} /></IconButton>
+        </div>
+
+        <form onSubmit={onSave}>
+          <label>
+            <span>选中的单词或原句 *</span>
+            <textarea
+              autoFocus
+              required
+              value={form.text}
+              onChange={(event) => update("text", event.target.value)}
+              placeholder="粘贴刚刚遇到的单词、短语或完整句子"
+            />
+            <small>如果这里是一整句，它会原样进入收件箱，不会擅自猜目标词。</small>
+          </label>
+          <label>
+            <span>要记的单词或短语</span>
+            <input
+              value={form.expression}
+              onChange={(event) => update("expression", event.target.value)}
+              placeholder="选中整句时可以现在填写，也可以稍后选择"
+            />
+          </label>
+          <label>
+            <span>这一幕里的含义</span>
+            <textarea
+              value={form.meaning}
+              onChange={(event) => update("meaning", event.target.value)}
+              placeholder="可选；不确定时留空，稍后再整理"
+            />
+          </label>
+          <div className="modal-actions quick-capture-actions">
+            <button className="secondary-button" type="button" onClick={onOpenFull}>
+              <Plus size={17} />完整添加
+            </button>
+            <button className="primary-button" type="submit">
+              <Inbox size={17} />加入收件箱
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function MobileInboxModal({ draft, status, onChange, onClose, onSave, onClear }) {
+  function update(field, value) {
+    onChange((previous) => ({ ...previous, [field]: value }));
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="card-modal sync-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mobile-inbox-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="modal-header">
+          <div>
+            <span>MOBILE INBOX</span>
+            <h2 id="mobile-inbox-title">手机收词同步</h2>
+          </div>
+          <IconButton label="关闭" onClick={onClose}><X size={20} /></IconButton>
+        </div>
+
+        <form onSubmit={onSave}>
+          <div className="sync-destination">
+            <Smartphone size={20} />
+            <div>
+              <strong>SceneCards 私人收件箱</strong>
+              <span>只保存你主动提交的单词和原句</span>
+            </div>
+          </div>
+          <label>
+            <span>收件箱地址</span>
+            <input
+              required
+              type="url"
+              autoComplete="url"
+              value={draft.endpoint}
+              onChange={(event) => update("endpoint", event.target.value)}
+              placeholder="https://scenecards-mobile-inbox.example.workers.dev"
+            />
+          </label>
+          <label>
+            <span>收件箱密钥</span>
+            <input
+              required
+              type="password"
+              autoComplete="off"
+              value={draft.key}
+              onChange={(event) => update("key", event.target.value)}
+              placeholder="手机快捷指令和 SceneCards 使用同一把密钥"
+            />
+            <small>它不具备 GitHub 仓库权限；泄露后可以单独撤销和替换。</small>
+          </label>
+
+          <div className={`sync-status ${status.state}`} aria-live="polite">
+            <span />
+            {status.message || (draft.enabled ? "自动收词同步已开启" : "尚未开启")}
+          </div>
+
+          <div className="modal-actions sync-actions">
+            {draft.enabled && (
+              <button className="text-button danger-text" type="button" onClick={onClear}>
+                清除本机设置
+              </button>
+            )}
+            <button className="secondary-button" type="button" onClick={onClose}>取消</button>
+            <button className="primary-button" type="submit" disabled={status.state === "syncing"}>
+              <RefreshCw size={17} />
+              {status.state === "syncing" ? "连接中" : "保存并同步"}
+            </button>
+          </div>
+        </form>
+      </section>
     </div>
   );
 }
@@ -1507,7 +1858,7 @@ function InboxView({ cards, onEdit, onDelete }) {
   return (
     <section className="inbox-view">
       <div className="inbox-header">
-        <div><span>BOB INBOX</span><h1>待整理</h1></div>
+        <div><span>CAPTURE INBOX</span><h1>待整理</h1></div>
         <span>{cards.length} 张</span>
       </div>
 
@@ -1542,7 +1893,7 @@ function InboxView({ cards, onEdit, onDelete }) {
       ) : (
         <div className="empty-library">
           <Inbox size={28} />
-          <p>Bob 收件箱是空的。</p>
+          <p>收件箱是空的。</p>
         </div>
       )}
     </section>

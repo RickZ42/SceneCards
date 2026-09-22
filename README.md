@@ -48,6 +48,22 @@ browser, while review history, scheduling, dismissals, and user-edited card
 content remain local to that browser. The public library must never contain
 tokens, credentials, or private review data.
 
+## Quick capture on iPhone
+
+Use the lightning button in SceneCards for a word, phrase, or complete sentence.
+A word is added directly to the inbox. A complete sentence is preserved without
+guessing the target word, so it can be selected later in the inbox.
+
+The optional iOS Share Sheet shortcut sends selected text to a private mobile
+inbox. SceneCards checks that inbox when it opens, regains focus, reconnects,
+and every minute while it remains open. Captures are deduplicated on each
+device. See [the iPhone shortcut guide](docs/iphone-shortcut.md) for setup.
+
+The mobile inbox uses a separate random key and does not receive the GitHub
+token or review-sync password. Captured text is encrypted before storage in
+Cloudflare Workers KV and expires after 180 days. The public GitHub card library
+never contains these unprocessed captures.
+
 ## Encrypted review-progress sync
 
 Use the cloud button on each device to enter the same sync password and a
