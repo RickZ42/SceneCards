@@ -19,20 +19,24 @@ SceneCards backup files.
 Create a shortcut named **Add to SceneCards** and enable **Show in Share Sheet**
 for Text. Add these actions in order:
 
-1. **Generate UUID**.
-2. **Current Date**, formatted as ISO 8601.
-3. **Get Contents of URL** using `WORKER_URL/capture`.
-4. Set the method to `POST` and the request body to JSON with:
-   - `id`: the generated UUID
+1. **Get Contents of URL** using `WORKER_URL/capture`.
+2. Set the method to `POST` and the request body to JSON with:
    - `text`: Shortcut Input
    - `source`: `iPhone Share Sheet`
-   - `createdAt`: the formatted current date
-5. Add the request header `Authorization: Bearer INBOX_KEY`.
-6. Add **Show Notification** with `Added to SceneCards`.
+3. Add the request header `Authorization: Bearer INBOX_KEY`.
+4. Add **Show Notification** with `Added to SceneCards`.
+
+The Worker generates a stable capture ID and timestamp when those fields are
+not supplied. Keeping that responsibility on the Worker makes the shortcut
+shorter and easier to review.
 
 Replace `WORKER_URL` and `INBOX_KEY` with the values shown during private inbox
 setup. Do not share screenshots or exported copies of the shortcut while the
 key is embedded in it.
+
+The shortcut created on a Mac appears on the iPhone automatically when
+Shortcuts is enabled in iCloud. Open Shortcuts on the iPhone once if it has not
+yet appeared under **All Shortcuts** or **Share Sheet**.
 
 ## Use it
 

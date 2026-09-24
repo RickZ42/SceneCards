@@ -13,17 +13,26 @@ inside each SceneCards browser.
 
 ```sh
 npm install
-npx wrangler login
-npx wrangler deploy --config worker/wrangler.jsonc
+npx wrangler login --device
 ```
 
-Wrangler automatically provisions the `CAPTURES` KV namespace on first deploy.
-Set two Worker secrets before the final deployment:
+Generate two different 32-byte secrets and place them in a temporary, untracked
+environment file:
 
 ```sh
-openssl rand -base64 32 | npx wrangler secret put INBOX_KEY --config worker/wrangler.jsonc
-openssl rand -base64 32 | npx wrangler secret put INBOX_ENCRYPTION_KEY --config worker/wrangler.jsonc
+INBOX_KEY=<random 32-byte value encoded as base64>
+INBOX_ENCRYPTION_KEY=<different random 32-byte value encoded as base64>
 ```
 
-Do not commit either value. Put the `INBOX_KEY` and the deployed Worker URL in
-SceneCards on each device and in the private iOS shortcut.
+Use that file for the first deployment because Wrangler cannot add required
+secrets to a Worker that does not exist yet:
+
+```sh
+npx wrangler deploy \
+  --config worker/wrangler.jsonc \
+  --secrets-file /path/to/private-secrets.env
+```
+
+Wrangler automatically provisions the `CAPTURES` KV namespace. Do not commit
+either secret or the temporary file. Put the `INBOX_KEY` and the deployed Worker
+URL in SceneCards on each device and in the private iOS shortcut.
