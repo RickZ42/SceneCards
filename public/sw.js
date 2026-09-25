@@ -1,4 +1,4 @@
-const CACHE_NAME = "scenecards-shell-v4";
+const CACHE_NAME = "scenecards-shell-v5";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -14,20 +14,32 @@ function scopeUrl(path) {
   return new URL(path, self.registration.scope).href;
 }
 
+// Cache the scripts referenced by this exact HTML before making it the offline shell.
+async function cachePage(cache, response) {
+  const html = await response.clone().text();
+  const assets = [...html.matchAll(/(?:src|href)="([^"#]+)"/g)]
+    .map((match) => new URL(match[1], scopeUrl("./index.html")))
+    .filter((url) => url.origin === self.location.origin)
+    .map((url) => url.href);
+  await cache.addAll([...new Set(assets)]);
+  await cache.put(scopeUrl("./index.html"), response.clone());
+}
+
+async function offlinePage(cache) {
+  return await cache.match(scopeUrl("./index.html")) || new Response(
+    '<!doctype html><meta name="viewport" content="width=device-width"><p>SceneCards is offline. Connect to the internet and reopen this page.</p>',
+    { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } },
+  );
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
-    await cache.addAll(APP_SHELL.map(scopeUrl));
+    await cache.addAll(APP_SHELL.filter((path) => path !== "./" && path !== "./index.html").map(scopeUrl));
 
     const indexResponse = await fetch(scopeUrl("./index.html"), { cache: "no-store" });
-    if (indexResponse.ok) {
-      const html = await indexResponse.clone().text();
-      const assets = [...html.matchAll(/(?:src|href)="([^"#]+)"/g)]
-        .map((match) => new URL(match[1], scopeUrl("./index.html")))
-        .filter((url) => url.origin === self.location.origin && url.protocol !== "data:")
-        .map((url) => url.href);
-      await cache.addAll([...new Set(assets)]);
-    }
+    if (!indexResponse.ok) throw new Error("SceneCards shell is unavailable");
+    await cachePage(cache, indexResponse);
 
     await self.skipWaiting();
   })());
@@ -54,18 +66,14 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith((async () => {
+      const cache = await caches.open(CACHE_NAME);
       try {
-        const response = await fetch(request);
-        if (response.ok) {
-          const cache = await caches.open(CACHE_NAME);
-          await cache.put(request, response.clone());
-        }
+        const response = await fetch(request, { cache: "no-store" });
+        if (!response.ok) return offlinePage(cache);
+        await cachePage(cache, response);
         return response;
       } catch {
-        return (
-          await caches.match(request) ||
-          await caches.match(scopeUrl("./index.html"))
-        );
+        return offlinePage(cache);
       }
     })());
     return;

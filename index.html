@@ -23,6 +23,64 @@
     <title>SceneCards</title>
   </head>
   <body>
+    <section id="startup-recovery" hidden style="max-width:36rem;margin:3rem auto;padding:1.5rem;font:16px/1.6 system-ui;color:#202923;background:white">
+      <h1 style="font-size:24px">SceneCards</h1>
+      <p>页面未能正常启动。请联网后重试；恢复只更新网页缓存，保留本机卡片和复习进度。</p>
+      <button id="recover-app" type="button">恢复打开</button>
+      <button id="backup-before-recovery" type="button">备份本机卡片</button>
+      <p id="recovery-status" role="status"></p>
+    </section>
+    <script>
+      (function () {
+        var panel = document.getElementById("startup-recovery");
+        var message = document.getElementById("recovery-status");
+        var scope = new URL("./", location.href).href;
+        function showRecovery() { panel.hidden = false; }
+        window.addEventListener("error", showRecovery, true);
+        setTimeout(function () {
+          if (!document.getElementById("root").children.length) showRecovery();
+        }, 10000);
+        document.getElementById("backup-before-recovery").onclick = function () {
+          try {
+            var data = localStorage.getItem("scenecards.data.v1");
+            if (!data) { message.textContent = "当前浏览器没有找到本机卡片。"; return; }
+            var url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+            var link = document.createElement("a");
+            link.href = url;
+            link.download = "scenecards-recovery-backup.json";
+            link.click();
+            setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+          } catch (error) { message.textContent = "备份失败：" + error.message; }
+        };
+        document.getElementById("recover-app").onclick = async function () {
+          this.disabled = true;
+          try {
+            // Verify connectivity before removing the offline shell. Never touch localStorage.
+            var probe = await fetch(new URL("index.html?recovery=" + Date.now(), scope), { cache: "no-store" });
+            if (!probe.ok || !navigator.onLine) throw new Error("请连接网络后重试");
+            if ("serviceWorker" in navigator) {
+              var registrations = await navigator.serviceWorker.getRegistrations();
+              await Promise.all(registrations.filter(function (r) { return r.scope === scope; }).map(function (r) { return r.unregister(); }));
+            }
+            if ("caches" in window) {
+              var keys = await caches.keys();
+              await Promise.all(keys.filter(function (key) { return key.indexOf("scenecards-shell-") === 0; }).map(function (key) { return caches.delete(key); }));
+            }
+            var fresh = new URL(location.href);
+            fresh.searchParams.set("recovery", Date.now());
+            location.replace(fresh.href);
+          } catch (error) { message.textContent = error.message; this.disabled = false; }
+        };
+        // Independent of the app bundle, so a missing module cannot block a worker update.
+        if (location.protocol === "https:" && "serviceWorker" in navigator) {
+          navigator.serviceWorker.register(new URL("sw.js", scope).href, { scope: scope, updateViaCache: "none" }).then(function (registration) {
+            document.addEventListener("visibilitychange", function () {
+              if (!document.hidden) registration.update().catch(function () {});
+            });
+          }).catch(function () {});
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
