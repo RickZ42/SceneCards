@@ -1146,6 +1146,28 @@ main {
   width: min(520px, 100%);
 }
 
+.sync-password-field {
+  display: grid;
+  gap: 7px;
+}
+
+.sync-password-field small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.sync-password-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 8px;
+}
+
+.sync-password-controls .icon-button {
+  width: 42px;
+  height: 42px;
+}
+
 .quick-capture-modal {
   width: min(560px, 100%);
 }

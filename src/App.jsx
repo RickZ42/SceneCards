@@ -5,6 +5,7 @@ import CalendarClock from "lucide-react/dist/esm/icons/calendar-clock.js";
 import Check from "lucide-react/dist/esm/icons/check.js";
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.js";
 import Cloud from "lucide-react/dist/esm/icons/cloud.js";
+import Copy from "lucide-react/dist/esm/icons/copy.js";
 import Download from "lucide-react/dist/esm/icons/download.js";
 import Edit3 from "lucide-react/dist/esm/icons/edit-3.js";
 import Eye from "lucide-react/dist/esm/icons/eye.js";
@@ -1761,7 +1762,19 @@ function ReviewSyncModal({
   onClear,
   onMakeAuthoritative,
 }) {
+  const [copyStatus, setCopyStatus] = useState("");
+
+  async function copySyncPassword() {
+    try {
+      await navigator.clipboard.writeText(draft.passphrase);
+      setCopyStatus("同步密码已复制");
+    } catch {
+      setCopyStatus("无法访问剪贴板，请重试");
+    }
+  }
+
   function update(field, value) {
+    setCopyStatus("");
     onChange((previous) => ({ ...previous, [field]: value }));
   }
 
@@ -1802,19 +1815,26 @@ function ReviewSyncModal({
             />
             <small>仅需这个仓库的 Contents 读写权限。</small>
           </label>
-          <label>
-            <span>同步密码</span>
-            <input
-              required
-              minLength={8}
-              type="password"
-              autoComplete="current-password"
-              value={draft.passphrase}
-              onChange={(event) => update("passphrase", event.target.value)}
-              placeholder="手机和电脑填写同一个密码"
-            />
+          <div className="sync-password-field">
+            <label htmlFor="review-sync-password"><span>同步密码</span></label>
+            <div className="sync-password-controls">
+              <input
+                id="review-sync-password"
+                required
+                minLength={8}
+                type="password"
+                autoComplete="current-password"
+                value={draft.passphrase}
+                onChange={(event) => update("passphrase", event.target.value)}
+                placeholder="手机和电脑填写同一个密码"
+              />
+              <IconButton label="复制同步密码" disabled={!draft.passphrase} onClick={copySyncPassword}>
+                <Copy size={18} />
+              </IconButton>
+            </div>
             <small>密码只保存在当前设备，用于加密 GitHub 上的复习记录。</small>
-          </label>
+            {copyStatus && <small role="status">{copyStatus}</small>}
+          </div>
 
           <div className={`sync-status ${status.state}`} aria-live="polite">
             <span />
