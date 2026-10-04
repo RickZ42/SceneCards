@@ -765,6 +765,18 @@ main {
   border-radius: 6px;
 }
 
+.daily-plan { padding: 18px 20px; border-top: 1px solid var(--line); font-size: 13px; }
+.daily-plan p { margin: 0; line-height: 1.6; }
+.daily-progress { color: var(--muted); }
+.daily-progress strong { color: var(--ink); }
+.daily-plan .daily-deferred { margin-top: 6px; color: var(--teal); }
+.daily-plan h3 { margin: 16px 0 8px; font-size: 14px; }
+.daily-plan ol { list-style: none; padding: 0; margin: 0; }
+.daily-plan li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; }
+.daily-plan li span { flex-shrink: 0; font-weight: 700; }
+.daily-plan .daily-more { margin-top: 8px; color: var(--muted); font-size: 12px; }
+.empty-review .daily-plan { width: min(360px, calc(100% - 40px)); padding: 14px 0; text-align: left; }
+
 .empty-review h1,
 .empty-review p {
   margin: 0;
@@ -1349,7 +1361,19 @@ main {
   }
 
   .review-queue {
+    background: transparent;
+    border: 0;
+  }
+
+  .review-queue > .section-heading,
+  .review-queue > .queue-list,
+  .review-queue > .queue-more {
     display: none;
+  }
+
+  .review-queue .daily-plan {
+    padding-right: 0;
+    padding-left: 0;
   }
 
   .library-toolbar {

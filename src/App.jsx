@@ -25,6 +25,7 @@ import X from "lucide-react/dist/esm/icons/x.js";
 import Zap from "lucide-react/dist/esm/icons/zap.js";
 import UserRound from "lucide-react/dist/esm/icons/user-round.js";
 import AccountPanel from "./AccountPanel.jsx";
+import { createDailyPlan } from "./dailyPlan.js";
 import {
   ACCOUNT_SESSION_KEY, accountCacheKey, decryptPrivateStore, emptyPrivateStore,
   encryptPrivateStore, loadAccountCache, loadAccountSession, mergePrivateStores,
@@ -36,7 +37,6 @@ import {
   MEMORY_REVIEW_THRESHOLD,
 } from "./memoryHooks.js";
 import {
-  compareReviewQueueCards,
   moveCardToReviewQueueEnd,
 } from "./reviewQueue.js";
 import {
@@ -973,26 +973,26 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
     [store.cards],
   );
 
-  const dueCards = useMemo(
-    () =>
-      [...activeCards]
-        .filter((card) => new Date(card.dueAt).getTime() <= now)
-        .sort(compareReviewQueueCards),
-    [activeCards, now],
+  const dailyPlan = useMemo(
+    () => createDailyPlan(activeCards, store.reviews, now),
+    [activeCards, store.reviews, now],
   );
+  const dueCards = dailyPlan.queue;
 
   const currentCard = dueCards[0] || null;
+  useEffect(() => setRevealed(false), [currentCard?.id]);
   const matureCount = activeCards.filter((card) => card.intervalDays >= 21).length;
   const streak = calculateStreak(store.reviews);
   const nextCard = [...activeCards]
-    .filter((card) => new Date(card.dueAt).getTime() > now)
-    .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt))[0];
+    .filter((card) => new Date(dailyPlan.scheduledAt.get(card.id)).getTime() > now)
+    .sort((a, b) => new Date(dailyPlan.scheduledAt.get(a.id)) - new Date(dailyPlan.scheduledAt.get(b.id)))[0];
+  const nextDueAt = nextCard ? dailyPlan.scheduledAt.get(nextCard.id) : null;
 
   const visibleCards = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return [...activeCards]
       .filter((card) => {
-        if (filter === "due" && new Date(card.dueAt).getTime() > now) return false;
+        if (filter === "due" && !dailyPlan.queuedIds.has(card.id)) return false;
         if (filter === "learning" && card.intervalDays >= 21) return false;
         if (filter === "mature" && card.intervalDays < 21) return false;
         if (!needle) return true;
@@ -1011,7 +1011,7 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
           .includes(needle);
       })
       .sort((a, b) => a.expression.localeCompare(b.expression));
-  }, [activeCards, filter, now, query]);
+  }, [activeCards, filter, dailyPlan, query]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -1614,7 +1614,8 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
           <ReviewView
             currentCard={currentCard}
             dueCards={dueCards}
-            nextCard={nextCard}
+            dailyPlan={dailyPlan}
+            nextDueAt={nextDueAt}
             revealed={revealed}
             onReveal={revealAnswer}
             onRate={rateCard}
@@ -1624,6 +1625,7 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
         ) : view === "library" ? (
           <LibraryView
             cards={visibleCards}
+            dailyPlan={dailyPlan}
             query={query}
             filter={filter}
             onQuery={setQuery}
@@ -2003,7 +2005,8 @@ function InboxView({ cards, onEdit, onDelete }) {
 function ReviewView({
   currentCard,
   dueCards,
-  nextCard,
+  dailyPlan,
+  nextDueAt,
   revealed,
   onReveal,
   onRate,
@@ -2015,7 +2018,8 @@ function ReviewView({
       <section className="empty-review">
         <span className="empty-icon"><Check size={30} /></span>
         <h1>今天的卡片完成了</h1>
-        <p>{nextCard ? `下一张将在 ${formatDue(nextCard.dueAt)} 出现。` : "还没有卡片。"}</p>
+        <p>{nextDueAt ? `下一次复习：${formatDue(nextDueAt)}` : "还没有待安排的卡片。"}</p>
+        <DailyPlan plan={dailyPlan} />
         <button className="primary-button" type="button" onClick={onAdd}>
           <Plus size={18} />添加卡片
         </button>
@@ -2161,13 +2165,30 @@ function ReviewView({
           ))}
         </div>
         {dueCards.length > 6 && <p className="queue-more">另外 {dueCards.length - 6} 张</p>}
+        <DailyPlan plan={dailyPlan} />
       </aside>
     </div>
   );
 }
 
+function DailyPlan({ plan }) {
+  return <section className="daily-plan" aria-label="后续复习计划">
+    <p className="daily-progress">今日已复习 <strong>{plan.reviewedCount}</strong> / {plan.limit} 个词</p>
+    {plan.deferredCount > 0 && <p className="daily-deferred">{plan.deferredCount} 个已顺延至后续计划</p>}
+    {plan.futureDays.length > 0 && <>
+      <h3>后续计划</h3>
+      <ol>{plan.futureDays.slice(0, 3).map((day) => <li key={day.date}>
+        <time dateTime={day.date}>{new Date(day.at).toLocaleDateString("zh-CN", { month: "short", day: "numeric", weekday: "short" })}</time>
+        <span>{day.count} 个词</span>
+      </li>)}</ol>
+      {plan.futureDays.length > 3 && <p className="daily-more">另有 {plan.futureDays.length - 3} 天的计划</p>}
+    </>}
+  </section>;
+}
+
 function LibraryView({
   cards,
+  dailyPlan,
   query,
   filter,
   onQuery,
@@ -2191,7 +2212,7 @@ function LibraryView({
         <div className="segmented-control" aria-label="筛选卡片">
           {[
             ["all", "全部"],
-            ["due", "待复习"],
+            ["due", "今日待复习"],
             ["learning", "学习中"],
             ["mature", "已掌握"],
           ].map(([value, label]) => (
@@ -2233,8 +2254,8 @@ function LibraryView({
                 <span>{card.personalExample || card.originalLine}</span>
               </div>
               <div className="status-cell">
-                <span className={new Date(card.dueAt).getTime() <= Date.now() ? "due-pill" : "date-pill"}>
-                  {new Date(card.dueAt).getTime() <= Date.now() ? "待复习" : formatDue(card.dueAt)}
+                <span className={dailyPlan.queuedIds.has(card.id) ? "due-pill" : "date-pill"}>
+                  {dailyPlan.queuedIds.has(card.id) ? "待复习" : formatDue(dailyPlan.scheduledAt.get(card.id) || card.dueAt)}
                 </span>
               </div>
               <div className="row-actions">

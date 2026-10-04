@@ -12,6 +12,19 @@ than extra text shown after the answer. Revealing the answer automatically reads
 the target expression aloud. The complete representative sentence remains
 available from its speaker button.
 
+## Daily Workload
+
+Each local calendar day admits at most 30 different words or expressions, in
+the existing due-queue order. Completed words still consume that day's allowance;
+refreshing or finishing a card does not pull in a 31st word. Forgotten words stay
+at the end of today's queue and repeated attempts consume only one slot.
+
+Excess words carry forward into later days, with a visible forecast of up to 30
+words per day. Forecasts update as cards are reviewed or added. This workload
+layer does not rewrite the underlying spaced-review intervals or review history.
+The allowance is derived from review history and last-reviewed timestamps, so
+account sync also carries it between devices using the same local calendar day.
+
 ## Run locally
 
 ```bash
