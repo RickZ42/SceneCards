@@ -4,6 +4,11 @@
   "main": "index.js",
   "compatibility_date": "2026-09-22",
   "workers_dev": true,
+  "durable_objects": {
+    "bindings": [{ "name": "ACCOUNT_DATA", "class_name": "AccountData" }]
+  },
+  "migrations": [{ "tag": "private-accounts-v1", "new_sqlite_classes": ["AccountData"] }],
+  "ratelimits": [{ "name": "ACCOUNT_RATE_LIMIT", "namespace_id": "104202601", "simple": { "limit": 120, "period": 60 } }],
   "kv_namespaces": [
     {
       "binding": "CAPTURES"

@@ -23,6 +23,13 @@ import Upload from "lucide-react/dist/esm/icons/upload.js";
 import Volume2 from "lucide-react/dist/esm/icons/volume-2.js";
 import X from "lucide-react/dist/esm/icons/x.js";
 import Zap from "lucide-react/dist/esm/icons/zap.js";
+import UserRound from "lucide-react/dist/esm/icons/user-round.js";
+import AccountPanel from "./AccountPanel.jsx";
+import {
+  ACCOUNT_SESSION_KEY, accountCacheKey, decryptPrivateStore, emptyPrivateStore,
+  encryptPrivateStore, loadAccountCache, loadAccountSession, mergePrivateStores,
+  signInAccount, syncPrivateStore,
+} from "./accountSync.js";
 import {
   createAutomaticMemoryHook,
   enrichCardsWithAutomaticMemoryHooks,
@@ -133,7 +140,7 @@ const exploitCard = {
   contentRevision: BUNDLED_CONTENT_REVISION,
 };
 
-const bundledCards = [boomerangCard, exploitCard];
+const bundledCards = [];
 
 const emptyForm = {
   expression: "",
@@ -184,6 +191,7 @@ function captureToCard(capture) {
     captureIds: [capture.id],
     captureContentRevision: capture.contentRevision || 1,
     status: meaning && !capture.needsEditing ? "active" : "draft",
+    contentUpdatedAt: now,
     expression: capture.expression.trim(),
     pronunciation: capture.pronunciation || "",
     difficulty: normalizeDifficulty(capture.difficulty),
@@ -316,6 +324,7 @@ function reconcileCapturedCards(previous, captures, deletedCaptureIds = new Set(
             ? "active"
             : existing.status,
         needsTarget: refreshesCapture ? incoming.needsTarget : existing.needsTarget,
+        contentUpdatedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
     }
@@ -331,7 +340,6 @@ function reconcileCapturedCards(previous, captures, deletedCaptureIds = new Set(
     dismissedCaptureIds: [...dismissed],
     processedCaptureRevisions,
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(nextStore));
   return nextStore;
 }
 
@@ -420,6 +428,8 @@ function mergeBundledCards(data) {
   );
 
   return {
+    ...emptyPrivateStore(),
+    ...data,
     cards: enrichCardsWithAutomaticMemoryHooks([...additions, ...cards], reviews),
     reviews,
     installedSeeds: [...bundledIds],
@@ -472,16 +482,16 @@ function createCloze(sentence, expression) {
   };
 }
 
-function loadStore() {
+function loadStore(key = STORAGE_KEY) {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const saved = JSON.parse(localStorage.getItem(key));
     if (saved && Array.isArray(saved.cards)) {
       return mergeBundledCards(saved);
     }
   } catch {
     // A damaged local backup should not prevent the app from opening.
   }
-  return mergeBundledCards({ cards: [], reviews: [], installedSeeds: [] });
+  return emptyPrivateStore();
 }
 
 function loadReviewSyncSettings() {
@@ -602,6 +612,7 @@ function scheduleCard(card, rating) {
   return {
     ...card,
     repetitions,
+    contentUpdatedAt: card.contentUpdatedAt || card.updatedAt || card.createdAt,
     intervalDays,
     ease,
     lapses,
@@ -634,8 +645,8 @@ function DifficultyBadge({ level }) {
   );
 }
 
-function App() {
-  const [store, setStore] = useState(loadStore);
+function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, onAccountStatus, privateSyncRef }) {
+  const [store, setStore] = useState(() => initialStore || loadStore(storageKey));
   const [view, setView] = useState("review");
   const [revealed, setRevealed] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -645,14 +656,17 @@ function App() {
   const [filter, setFilter] = useState("all");
   const [toast, setToast] = useState("");
   const [now, setNow] = useState(() => Date.now());
-  const [syncSettings, setSyncSettings] = useState(loadReviewSyncSettings);
-  const [syncDraft, setSyncDraft] = useState(() => loadReviewSyncSettings());
+  const [syncSettings, setSyncSettings] = useState(() => legacyLocal ? loadReviewSyncSettings() : { enabled: false });
+  const [syncDraft, setSyncDraft] = useState(() => legacyLocal ? loadReviewSyncSettings() : { enabled: false });
   const [syncModalOpen, setSyncModalOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ state: "idle", message: "" });
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [quickCapture, setQuickCapture] = useState(emptyQuickCapture);
-  const [mobileInboxSettings, setMobileInboxSettings] = useState(loadMobileInboxSettings);
-  const [mobileInboxDraft, setMobileInboxDraft] = useState(loadMobileInboxSettings);
+  const accountInbox = () => account
+    ? normalizeMobileInboxSettings({ enabled: true, endpoint: account.endpoint, key: account.code })
+    : legacyLocal ? loadMobileInboxSettings() : normalizeMobileInboxSettings();
+  const [mobileInboxSettings, setMobileInboxSettings] = useState(accountInbox);
+  const [mobileInboxDraft, setMobileInboxDraft] = useState(accountInbox);
   const [mobileInboxModalOpen, setMobileInboxModalOpen] = useState(false);
   const [mobileInboxStatus, setMobileInboxStatus] = useState({ state: "idle", message: "" });
   const importRef = useRef(null);
@@ -664,6 +678,42 @@ function App() {
   const syncRunnerRef = useRef(null);
   const mobileInboxSettingsRef = useRef(mobileInboxSettings);
   const mobileInboxInFlightRef = useRef(false);
+  const privateInFlightRef = useRef(false);
+  const privateQueuedRef = useRef(false);
+  const aliveRef = useRef(true);
+  const cacheWriteRef = useRef(Promise.resolve());
+  const [privateStatus, setPrivateStatus] = useState({ state: "idle", message: "等待同步" });
+
+  useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
+
+  const runPrivateSync = useCallback(async () => {
+    if (!account || !aliveRef.current) return;
+    if (!navigator.onLine) { setPrivateStatus({ state: "offline", message: "离线 · 已保存在本机" }); return; }
+    if (privateInFlightRef.current) { privateQueuedRef.current = true; return; }
+    privateInFlightRef.current = true;
+    setPrivateStatus({ state: "syncing", message: "正在同步词库与复习进度" });
+    try {
+      const merged = await syncPrivateStore(account, () => storeRef.current);
+      if (aliveRef.current) {
+        setStore((previous) => {
+          const next = mergePrivateStores(previous, merged);
+          return JSON.stringify(next) === JSON.stringify(previous) ? previous : next;
+        });
+        setPrivateStatus({ state: "synced", message: `已同步 · ${new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}` });
+      }
+    } catch (error) {
+      if (aliveRef.current) setPrivateStatus({ state: "error", message: error.message || "同步失败，已保留本机数据" });
+    } finally {
+      privateInFlightRef.current = false;
+      if (privateQueuedRef.current && aliveRef.current) {
+        privateQueuedRef.current = false;
+        window.setTimeout(() => privateSyncRef.current?.(), 0);
+      }
+    }
+  }, [account, privateSyncRef]);
+
+  privateSyncRef.current = runPrivateSync;
+  useEffect(() => { onAccountStatus(privateStatus); }, [privateStatus, onAccountStatus]);
 
   storeRef.current = store;
   syncSettingsRef.current = syncSettings;
@@ -743,7 +793,7 @@ function App() {
       setStore((previous) => reconcileCapturedCards(previous, captures));
       const saved = { ...settings, lastSyncedAt: new Date().toISOString() };
       mobileInboxSettingsRef.current = saved;
-      saveMobileInboxSettings(saved);
+      if (!account) saveMobileInboxSettings(saved);
       setMobileInboxSettings(saved);
       setMobileInboxDraft(saved);
       setMobileInboxStatus({ state: "synced", message: "手机收件箱已同步" });
@@ -755,11 +805,56 @@ function App() {
     } finally {
       mobileInboxInFlightRef.current = false;
     }
-  }, []);
+  }, [account]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-  }, [store]);
+    if (!account) { localStorage.setItem(storageKey, JSON.stringify(store)); return; }
+    cacheWriteRef.current = cacheWriteRef.current.catch(() => {}).then(async () => {
+      const encrypted = await encryptPrivateStore(store, account);
+      localStorage.setItem(accountCacheKey(account.id), JSON.stringify(encrypted));
+    }).catch(() => {
+      if (aliveRef.current) setPrivateStatus({ state: "error", message: "本机存储已满，请下载备份" });
+    });
+  }, [store, account, storageKey]);
+
+  useEffect(() => {
+    if (!account) return undefined;
+    const sync = () => runPrivateSync();
+    const visible = () => { if (document.visibilityState === "visible") sync(); };
+    sync();
+    const interval = window.setInterval(sync, 60_000);
+    window.addEventListener("focus", sync);
+    window.addEventListener("online", sync);
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", sync);
+      window.removeEventListener("online", sync);
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, [account, runPrivateSync]);
+
+  useEffect(() => {
+    if (!account) return undefined;
+    const timeout = window.setTimeout(() => runPrivateSync(), 1500);
+    return () => window.clearTimeout(timeout);
+  }, [store, account, runPrivateSync]);
+
+  useEffect(() => {
+    if (!account) return undefined;
+    const receiveCache = async (event) => {
+      if (event.key !== accountCacheKey(account.id) || !event.newValue) return;
+      try {
+        const incoming = await decryptPrivateStore(JSON.parse(event.newValue), account);
+        if (aliveRef.current) setStore((previous) => {
+          const next = mergePrivateStores(previous, incoming);
+          return JSON.stringify(next) === JSON.stringify(previous) ? previous : next;
+        });
+      } catch { /* Keep this tab's local data if another cache write is incomplete. */ }
+    };
+    window.addEventListener("storage", receiveCache);
+    return () => window.removeEventListener("storage", receiveCache);
+  }, [account]);
 
   const reviewSyncSignature = useMemo(
     () => reviewDocumentFingerprint(createReviewDocument(store)),
@@ -798,38 +893,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    let disposed = false;
-    let syncing = false;
-
-    async function syncPublishedCards() {
-      if (!navigator.onLine || syncing) return;
-      syncing = true;
-      try {
-        const libraryUrl = `${import.meta.env.BASE_URL}data/cards.json`;
-        const response = await fetch(libraryUrl, { cache: "no-store" });
-        if (!response.ok) return;
-        const payload = await response.json();
-        const captures = Array.isArray(payload.cards) ? payload.cards : [];
-        if (!captures.length || disposed) return;
-        setStore((previous) => reconcileCapturedCards(previous, captures));
-      } catch {
-        // Keep the installed app usable offline with its last local copy.
-      } finally {
-        syncing = false;
-      }
-    }
-
-    syncPublishedCards();
-    window.addEventListener("focus", syncPublishedCards);
-    window.addEventListener("online", syncPublishedCards);
-    return () => {
-      disposed = true;
-      window.removeEventListener("focus", syncPublishedCards);
-      window.removeEventListener("online", syncPublishedCards);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!mobileInboxSettings.enabled) return undefined;
     const sync = () => runMobileInboxSync();
     sync();
@@ -844,7 +907,7 @@ function App() {
   }, [mobileInboxSettings.enabled, mobileInboxSettings.endpoint, mobileInboxSettings.key, runMobileInboxSync]);
 
   useEffect(() => {
-    if (!hasLocalMacBridge()) return undefined;
+    if (!hasLocalMacBridge() || (!legacyLocal && !account?.owner)) return undefined;
 
     let disposed = false;
     let syncing = false;
@@ -1108,6 +1171,7 @@ function App() {
         .map((tag) => tag.trim())
         .filter(Boolean),
       updatedAt: now,
+      contentUpdatedAt: now,
       memoryHookSource: form.memoryHook.trim() ? "manual" : undefined,
     };
     if (!values.expression || !values.meaning) return;
@@ -1175,6 +1239,7 @@ function App() {
       return {
         ...previous,
         cards: previous.cards.filter((item) => item.id !== card.id),
+        deletedCards: { ...(previous.deletedCards || {}), [card.id]: new Date().toISOString() },
         reviews: previous.reviews.filter((review) => review.cardId !== card.id),
         dismissedCaptureIds: Array.from(new Set([
           ...(previous.dismissedCaptureIds || []),
@@ -1208,15 +1273,27 @@ function App() {
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
-        const data = JSON.parse(reader.result);
+        let data = JSON.parse(reader.result);
+        if (data.encryption === "AES-256-GCM") {
+          if (!account) throw new Error("Sign in to restore this encrypted backup");
+          data = await decryptPrivateStore(data, account);
+        }
         if (!Array.isArray(data.cards)) throw new Error("Invalid backup");
         const confirmed = window.confirm(
           `导入 ${data.cards.length} 张卡片并替换当前内容？`,
         );
         if (confirmed) {
-          setStore(mergeBundledCards(data));
+          const restoredAt = new Date().toISOString();
+          setStore((previous) => ({
+            ...mergeBundledCards(data),
+            cards: data.cards.map((card) => ({ ...migrateCard(card), restoredAt, contentUpdatedAt: restoredAt })),
+            deletedCards: {
+              ...(previous.deletedCards || {}), ...(data.deletedCards || {}),
+              ...Object.fromEntries(previous.cards.filter((card) => !data.cards.some((incoming) => incoming.id === card.id)).map((card) => [card.id, restoredAt])),
+            },
+          }));
           setRevealed(false);
           setToast("备份已恢复");
         }
@@ -1229,6 +1306,7 @@ function App() {
   }
 
   function openSyncSettings() {
+    if (account || !legacyLocal) { onAccount(); return; }
     setSyncDraft(syncSettings);
     setSyncModalOpen(true);
   }
@@ -1283,6 +1361,7 @@ function App() {
   }
 
   function openMobileInboxSettings() {
+    if (account || !legacyLocal) { onAccount(); return; }
     setMobileInboxDraft(mobileInboxSettings);
     setMobileInboxModalOpen(true);
   }
@@ -1436,11 +1515,12 @@ function App() {
           </span>
           <div>
             <strong>SceneCards</strong>
-            <span>情境英语闪卡</span>
+            <span>{account ? account.name : "本机词库"}</span>
           </div>
         </div>
 
         <div className="header-actions">
+          <IconButton label="账户与邀请" onClick={onAccount}><UserRound size={19} /></IconButton>
           <IconButton
             label="手机收词同步"
             className={`mobile-inbox-button ${mobileInboxSettings.enabled ? mobileInboxStatus.state : "off"}`}
@@ -1449,8 +1529,8 @@ function App() {
             <Smartphone size={19} />
           </IconButton>
           <IconButton
-            label="学习进度同步"
-            className={`sync-button ${syncSettings.enabled ? syncStatus.state : "off"}`}
+            label={account ? "私人词库同步" : "学习进度同步"}
+            className={`sync-button ${account ? privateStatus.state : syncSettings.enabled ? syncStatus.state : "off"}`}
             onClick={openSyncSettings}
           >
             <Cloud size={19} />
@@ -2327,4 +2407,63 @@ function CardModal({ form, editing, onChange, onClose, onSave }) {
   );
 }
 
-export default App;
+export default function App() {
+  const [session, setSession] = useState(loadAccountSession);
+  const [initialStore, setInitialStore] = useState(null);
+  const [ready, setReady] = useState(() => !loadAccountSession());
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [status, setStatus] = useState({ state: "idle", message: "等待同步" });
+  const privateSyncRef = useRef(null);
+  const onStatus = useCallback((value) => setStatus(value), []);
+  const legacyLocal = !session && !localStorage.getItem("scenecards.private-mode.v1") && Boolean(localStorage.getItem(STORAGE_KEY));
+  const localKey = legacyLocal ? STORAGE_KEY : "scenecards.guest.v2";
+  const existingConnection = legacyLocal && Boolean(loadMobileInboxSettings().key);
+
+  useEffect(() => {
+    const receiveSession = (event) => {
+      if (event.key !== ACCOUNT_SESSION_KEY) return;
+      const next = loadAccountSession();
+      setInitialStore(null); setReady(!next); setSession(next); setAccountOpen(false);
+    };
+    window.addEventListener("storage", receiveSession);
+    return () => window.removeEventListener("storage", receiveSession);
+  }, []);
+
+  useEffect(() => {
+    if (!session) { setReady(true); return undefined; }
+    let disposed = false;
+    setReady(false); setLoadError("");
+    loadAccountCache(session).then((saved) => {
+      if (session.owner && !localStorage.getItem(accountCacheKey(session.id))) {
+        const legacy = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+        if (Array.isArray(legacy?.cards) && Array.isArray(legacy?.reviews)) saved = { ...emptyPrivateStore(), ...legacy };
+      }
+      if (!disposed) { setInitialStore(saved); setReady(true); }
+    }).catch((error) => { if (!disposed) setLoadError(error.message); });
+    return () => { disposed = true; };
+  }, [session]);
+
+  async function connect(code) {
+    const next = await signInAccount(code);
+    // Persist the private access code before mounting the account, including first invitation redemption.
+    localStorage.setItem(ACCOUNT_SESSION_KEY, JSON.stringify(next));
+    localStorage.setItem("scenecards.private-mode.v1", "true");
+    setInitialStore(null); setReady(false); setSession(next); setAccountOpen(true);
+  }
+
+  function disconnect() {
+    localStorage.removeItem(ACCOUNT_SESSION_KEY);
+    localStorage.setItem("scenecards.private-mode.v1", "true");
+    setSession(null); setInitialStore(null); setReady(true); setAccountOpen(false); setLoadError("");
+  }
+
+  return <>
+    {ready ? <CardApp key={session?.id || localKey} account={session} initialStore={initialStore} storageKey={localKey} legacyLocal={legacyLocal}
+      onAccount={() => setAccountOpen(true)} onAccountStatus={onStatus} privateSyncRef={privateSyncRef} />
+      : <div className="account-loading"><BookOpen size={28} /><strong>SceneCards</strong><p>{loadError || "正在打开私人词库"}</p>{loadError && <button className="secondary-button" onClick={disconnect}>返回本机词库</button>}</div>}
+    {accountOpen && <AccountPanel session={session} status={status} existingConnection={existingConnection}
+      onSignIn={connect} onExisting={() => connect(loadMobileInboxSettings().key)} onSignOut={disconnect}
+      onSync={() => privateSyncRef.current?.()} onClose={() => setAccountOpen(false)} />}
+  </>;
+}

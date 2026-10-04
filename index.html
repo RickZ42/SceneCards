@@ -42,12 +42,14 @@
         }, 10000);
         document.getElementById("backup-before-recovery").onclick = function () {
           try {
-            var data = localStorage.getItem("scenecards.data.v1");
+            var session = JSON.parse(localStorage.getItem("scenecards.account-session.v1") || "null");
+            var key = session ? "scenecards.account." + session.id + ".encrypted.v1" : localStorage.getItem("scenecards.private-mode.v1") ? "scenecards.guest.v2" : "scenecards.data.v1";
+            var data = localStorage.getItem(key);
             if (!data) { message.textContent = "当前浏览器没有找到本机卡片。"; return; }
             var url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
             var link = document.createElement("a");
             link.href = url;
-            link.download = "scenecards-recovery-backup.json";
+            link.download = session ? "scenecards-encrypted-recovery-backup.json" : "scenecards-recovery-backup.json";
             link.click();
             setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
           } catch (error) { message.textContent = "备份失败：" + error.message; }

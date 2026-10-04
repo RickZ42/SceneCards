@@ -22,6 +22,52 @@ npm start
 `npm start` builds the app and serves the stable local app at
 `http://127.0.0.1:5173/`.
 
+## Private Accounts
+
+SceneCards uses one shared website with separate private collections. New
+accounts start empty. Cards, meanings, examples, memory hooks, inbox dismissals,
+review history, due dates and queue positions sync only within that account.
+
+Open the account button to sign in with a private access code. The existing owner
+can use `Connect existing mobile inbox account` on their Mac to migrate that
+browser's collection without changing its cards or schedule. Its original local
+data remains available as a migration backup. Connect the Mac with the correct
+progress first; then use the same owner code on the phone.
+
+The owner can generate a single-use invitation for a friend. Invitations expire
+after seven days. Redeeming an invitation creates an empty account with a new
+private access code that is returned only to the recipient. Keep that code for
+other devices; there is no email/password recovery in this first version. A
+lost invitation response requires a new invitation. Losing every copy of the
+private code means the encrypted collection cannot be recovered.
+
+Collections and their per-account offline caches use AES-256-GCM with a key
+derived from the random access code using HKDF. Cloud storage sees encrypted
+collection documents. Account credentials are hashed in a separate directory;
+the backend always selects the authenticated account, not a client-supplied ID.
+Durable Objects enforce atomic revision checks so concurrent devices retry
+without overwriting each other's changes. Sign-out removes the saved code and
+keeps only the account's encrypted cache. Downloaded ordinary JSON backups are
+readable, so keep them private. Startup recovery can export an encrypted cache;
+sign into the same account before importing it.
+
+Each account uses its own private access code as its Shortcut inbox key, with
+the same Worker service address. Capture records are encrypted server-side and
+visible only within that account. The service operator can decrypt inbox
+captures; this inbox encryption is distinct from the client-encrypted collection.
+The original owner's Shortcut continues to work. Sharing the owner's personalised
+Shortcut would share its inbox access: personalise a separate copy for each user.
+
+Account sync runs after edits settle, on reconnect/focus, and every minute while
+the app is open. Offline changes remain cached and merge on reconnection.
+Deletes retain tombstones to prevent old devices from resurrecting cards.
+Owner accounts can use the local Bob bridge; invited accounts cannot import it.
+
+The site no longer automatically installs sample/personal cards or fetches the
+old public card library. Production builds omit `dist/data/cards.json`. Previously
+published files may remain in Git history and old downloaded copies; this does
+not retroactively make those copies private.
+
 ## Install on iPhone
 
 SceneCards is an installable offline web app. Serve the production build from an
@@ -30,23 +76,19 @@ After the first successful load, review, editing, scheduling, backup, and restor
 work without the Mac or an internet connection. The iPhone uses its own English
 voice; the Bob inbox remains an optional Mac-only integration.
 
-To move an existing collection, download a SceneCards JSON backup on the Mac,
-send it to the iPhone, and use the upload button in the installed app. The two
-devices keep independent local copies unless backups are moved manually or
-encrypted review-progress sync is enabled on both devices.
+Sign into the same private account on the Mac and iPhone to sync the complete
+collection and review progress. For a manual transfer, download a SceneCards
+JSON backup on the Mac and use the upload button on the iPhone. Unsigned local
+collections remain independent unless transferred manually or connected to an
+account.
 
-The app stores cards and review history in the current browser's local storage.
-Use the download button in the header to create a portable JSON backup, and the
-upload button to restore one. Optional encrypted progress sync can keep the
-review schedule aligned across browsers without putting card text or readable
-review history in the public repository.
+The app caches private collections encrypted in the current browser's local
+storage; unsigned local collections retain their original JSON format. Use the
+download button for a portable JSON backup and the upload button to restore one.
+Keep downloaded backups private because they include readable card content.
 
-The public card library is stored in `public/data/cards.json` and is deployed
-with GitHub Pages. The app checks this library when it opens, regains focus, or
-comes back online. Published card-content revisions are merged into each
-browser, while review history, scheduling, dismissals, and user-edited card
-content remain local to that browser. The public library must never contain
-tokens, credentials, or private review data.
+Private accounts do not load a public card library. GitHub Pages publishes the
+application, while private account documents remain on the authenticated Worker.
 
 ## Quick capture on iPhone
 
@@ -59,12 +101,15 @@ inbox. SceneCards checks that inbox when it opens, regains focus, reconnects,
 and every minute while it remains open. Captures are deduplicated on each
 device. See [the iPhone shortcut guide](docs/iphone-shortcut.md) for setup.
 
-The mobile inbox uses a separate random key and does not receive the GitHub
-token or review-sync password. Captured text is encrypted before storage in
-Cloudflare Workers KV and expires after 180 days. The public GitHub card library
-never contains these unprocessed captures.
+The mobile inbox uses the private account access code (or the original owner's
+inbox key), never the GitHub token or legacy review-sync password. Captured text
+is encrypted before storage in Cloudflare and expires after 180 days. Captures
+are not published to the public GitHub repository.
 
 ## Encrypted review-progress sync
+
+This section describes the older single-owner GitHub sync. Private accounts
+use full collection sync instead and never write to this shared GitHub file.
 
 Use the cloud button on each device to enter the same sync password and a
 fine-grained GitHub token restricted to `RickZ42/SceneCards` with `Contents:

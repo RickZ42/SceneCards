@@ -26,6 +26,31 @@
   box-sizing: border-box;
 }
 
+.account-content, .account-invite { display: grid; gap: 16px; }
+.account-modal .account-content { padding: 20px; }
+.account-modal { width: min(520px, calc(100vw - 32px)); }
+.account-modal h2 { font-size: 22px; overflow-wrap: anywhere; }
+.account-modal h3 { margin: 0; font-size: 16px; }
+.account-modal label { display: grid; gap: 7px; min-width: 0; }
+.account-modal input { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: white; }
+.account-secret > div { display: flex; gap: 6px; min-width: 0; align-items: center; }
+.account-secret input { flex: 1; font-family: ui-monospace, monospace; font-size: 13px; }
+.account-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.account-sync-status { margin: 0; color: var(--teal); font-size: 14px; }
+.account-sync-status.error, .account-message { color: var(--coral); overflow-wrap: anywhere; }
+.account-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.account-invite { border-top: 1px solid var(--line); padding-top: 20px; }
+.account-modal .account-invite { padding: 20px 0 0; }
+.account-modal .account-message { margin: 0 20px 20px; }
+.topbar .brand div span { display: block; }
+.invite-result { display: grid; gap: 12px; }
+.invite-result p { margin: 0; font-size: 13px; color: var(--muted); }
+.account-modal .account-show-code { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.account-show-code input { width: 16px; height: 16px; }
+.account-loading { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+.account-loading strong { font-size: 24px; }
+@media (max-width: 600px) { .topbar { height: auto; min-height: 72px; flex-wrap: wrap; padding-block: 12px; gap: 12px; } .header-actions { flex-wrap: wrap; } }
+
 body {
   margin: 0;
   min-width: 320px;

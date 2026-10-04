@@ -1,3 +1,7 @@
+import { completeDefinition, defineWord, lookupWord } from "./lookup.js";
+import { accountIdentity, accountObject, codeHash, handleAccountRoute } from "./accounts.js";
+export { AccountData } from "./accounts.js";
+
 const CAPTURE_PREFIX = "capture:";
 const RETENTION_SECONDS = 180 * 24 * 60 * 60;
 const MAX_CAPTURE_LENGTH = 6000;
@@ -39,15 +43,10 @@ function corsHeaders(request, env) {
     ? {
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Headers": "Authorization, Content-Type",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
         Vary: "Origin",
       }
     : {};
-}
-
-function isAuthorized(request, env) {
-  const value = request.headers.get("Authorization") || "";
-  return Boolean(env.INBOX_KEY) && value === `Bearer ${env.INBOX_KEY}`;
 }
 
 function base64ToBytes(value) {
@@ -100,6 +99,20 @@ export async function decryptCapture(payload, secret) {
 }
 
 export function normalizeCapture(body, now = new Date().toISOString()) {
+  if (body?.lookup !== undefined) {
+    // Shortcuts serializes a Dictionary magic variable in a Text field as JSON.
+    if (typeof body.lookup === "string") {
+      try {
+        body = { lookup: JSON.parse(body.lookup.slice(0, 16000)) };
+      } catch {
+        throw new Error("查词结果格式不正确，没有保存卡片。请重新查词。");
+      }
+    }
+    if (body.lookup?.ok !== true || !cleanText(body.lookup?.meaning) || !cleanText(body.lookup?.expression)) {
+      throw new Error("查词结果不完整，没有保存卡片。请重新查词。");
+    }
+    body = body.lookup;
+  }
   const sharedText = cleanText(body?.text || body?.originalLine || body?.expression);
   if (!sharedText) throw new Error("text is required");
 
@@ -112,7 +125,7 @@ export function normalizeCapture(body, now = new Date().toISOString()) {
   return {
     id,
     expression: explicitExpression || sharedText,
-    pronunciation: "",
+    pronunciation: cleanText(body?.pronunciation, 200),
     difficulty: "",
     meaning: cleanText(body?.meaning, 4000),
     originalLine: sentence ? sharedText : cleanText(body?.originalLine),
@@ -163,13 +176,51 @@ async function handleRequest(request, env) {
   }
 
   if (request.method === "GET" && url.pathname === "/health") {
-    return json({ ok: true, app: "SceneCards mobile inbox" }, 200, headers);
+    return json({ ok: true, app: "SceneCards mobile inbox", privateAccounts: Boolean(env.ACCOUNT_DATA) }, 200, headers);
   }
 
   if (allowedOrigin(request, env) === null) {
     return json({ error: "Origin not allowed" }, 403, headers);
   }
-  if (!isAuthorized(request, env)) return json({ error: "Unauthorized" }, 401, headers);
+  if (env.ACCOUNT_RATE_LIMIT) {
+    const key = await codeHash(request.headers.get("Authorization") || request.headers.get("CF-Connecting-IP") || "anonymous");
+    const { success } = await env.ACCOUNT_RATE_LIMIT.limit({ key });
+    if (!success) return json({ error: "请求过于频繁，请稍后重试" }, 429, headers);
+  }
+  const identity = await accountIdentity(request, env);
+  if (["/session", "/account", "/invites", "/vault"].includes(url.pathname)) {
+    try {
+      const result = await handleAccountRoute(request, env, identity);
+      return new Response(result.body, { status: result.status, headers: { ...Object.fromEntries(result.headers), ...headers } });
+    } catch {
+      return json({ error: "请求格式不正确或超出大小限制" }, 400, headers);
+    }
+  }
+  if (!identity) return json({ error: "Unauthorized" }, 401, headers);
+
+  if (request.method === "POST" && ["/lookup", "/definition"].includes(url.pathname)) {
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ ok: false, error: "请求格式不正确，没有保存卡片。" }, 400, headers);
+    }
+    try {
+      // Device-side translation avoids pooling all users under a Worker IP quota.
+      const parse = (value) => typeof value === "string" ? JSON.parse(value) : value;
+      const result = url.pathname === "/definition"
+        ? await defineWord(body?.text)
+        : body?.definition !== undefined
+          ? completeDefinition(parse(body.definition), parse(body.translation))
+          : await lookupWord(body?.text);
+      return json({ ok: true, ...result, id: crypto.randomUUID(), createdAt: new Date().toISOString() }, 200, headers);
+    } catch (error) {
+      const message = error?.name === "TimeoutError"
+        ? "查词超时，请稍后重试。没有保存任何卡片。"
+        : (error?.message || "查词失败，没有保存任何卡片。");
+      return json({ ok: false, error: message }, 422, headers);
+    }
+  }
 
   if (request.method === "POST" && url.pathname === "/capture") {
     let body;
@@ -187,6 +238,13 @@ async function handleRequest(request, env) {
     }
 
     const key = `${CAPTURE_PREFIX}${capture.createdAt}:${capture.id}`;
+    if (!identity.owner) {
+      const result = await accountObject(env, identity.id).fetch(new Request("https://account.internal/capture", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: capture.id, payload: await encryptCapture(capture, env.INBOX_ENCRYPTION_KEY) }),
+      }));
+      return new Response(result.body, { status: result.status, headers: { ...Object.fromEntries(result.headers), ...headers } });
+    }
     await env.CAPTURES.put(
       key,
       await encryptCapture(capture, env.INBOX_ENCRYPTION_KEY),
@@ -196,6 +254,12 @@ async function handleRequest(request, env) {
   }
 
   if (request.method === "GET" && url.pathname === "/captures") {
+    if (!identity.owner) {
+      const result = await accountObject(env, identity.id).fetch(new Request("https://account.internal/captures"));
+      const { payloads } = await result.json();
+      const cards = await Promise.all(payloads.map((payload) => decryptCapture(payload, env.INBOX_ENCRYPTION_KEY)));
+      return json({ cards: cards.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))) }, 200, headers);
+    }
     return json({ cards: await allCaptures(env) }, 200, headers);
   }
 

@@ -1,9 +1,8 @@
-const CACHE_NAME = "scenecards-shell-v5";
+const CACHE_NAME = "scenecards-shell-v6";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./data/cards.json",
   "./icons/apple-touch-icon.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -80,18 +79,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (url.pathname.endsWith("/data/cards.json")) {
-    event.respondWith((async () => {
-      try {
-        const response = await fetch(request, { cache: "no-store" });
-        if (response.ok) {
-          const cache = await caches.open(CACHE_NAME);
-          await cache.put(request, response.clone());
-        }
-        return response;
-      } catch {
-        return caches.match(request);
-      }
-    })());
+    event.respondWith(new Response("Not found", { status: 404 }));
     return;
   }
 
