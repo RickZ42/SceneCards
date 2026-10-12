@@ -1,3 +1,4 @@
+import { createMemorySceneStore } from "./memorySceneStore.mjs";
 import { execFile } from "node:child_process";
 import { createServer } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
@@ -13,6 +14,7 @@ const dataDir = process.env.SCENECARDS_DATA_DIR || path.join(rootDir, "data");
 const inboxPath = path.join(dataDir, "bob-inbox.json");
 const favoriteCursorPath = path.join(dataDir, "bob-favorite-cursor.json");
 const deletedCapturesPath = path.join(dataDir, "deleted-captures.json");
+const memoryScenes = createMemorySceneStore(dataDir);
 const speechDir = path.join(dataDir, "speech-cache");
 const bobDatabasePath = process.env.BOB_DATABASE_PATH || path.join(
   homedir(),
@@ -653,12 +655,12 @@ function startBobFavoriteWatcher() {
   interval.unref();
 }
 
-async function readJsonBody(request) {
+async function readJsonBody(request, maximum = 64 * 1024) {
   const chunks = [];
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > 64 * 1024) throw new Error("Request body is too large");
+    if (size > maximum) throw new Error("Request body is too large");
     chunks.push(chunk);
   }
   return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
@@ -708,6 +710,24 @@ async function handleApi(request, response, url) {
   if (!isAllowedBrowserRequest(request, url)) {
     sendJson(response, 403, { error: "This local API only accepts SceneCards requests." });
     return;
+  }
+
+  if (pathname === "/api/memory-scenes" || pathname === "/api/memory-scenes/queue") {
+    // Generation and queue inspection stay on this Mac; no new LAN access is granted.
+    if (!isLoopbackRequest(request)) { sendJson(response, 403, {error:"Memory-scene automation is available only on this Mac."}); return; }
+    try {
+      if (request.method === "GET") {
+        const scope = url.searchParams.get("scope");
+        const result = pathname.endsWith("/queue") ? await memoryScenes.queue(scope) : {entries:await memoryScenes.scenes(scope)};
+        sendJson(response,200,result); return;
+      }
+      if (request.method === "POST") {
+        const body = await readJsonBody(request,512*1024);
+        const result = pathname.endsWith("/queue") ? await memoryScenes.saveQueue(body) : await memoryScenes.saveScenes(body);
+        sendJson(response,200,result); return;
+      }
+      sendJson(response,405,{error:"Method not allowed"}); return;
+    } catch(error) { sendJson(response,error.status || 400,{error:error.message}); return; }
   }
 
   if (request.method === "GET" && pathname === "/api/health") {

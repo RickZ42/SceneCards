@@ -17,6 +17,11 @@ mkdir -p \
   "$runtime_dir/dist" \
   "$runtime_dir/data"
 install -m 0644 "$project_dir/server.mjs" "$runtime_dir/server.mjs"
+install -m 0644 "$project_dir/memorySceneStore.mjs" "$runtime_dir/memorySceneStore.mjs"
+mkdir -p "$runtime_dir/src"
+install -m 0644 "$project_dir/src/memoryScenes.js" "$runtime_dir/src/memoryScenes.js"
+install -m 0644 "$project_dir/src/sharedMemoryScenes.js" "$runtime_dir/src/sharedMemoryScenes.js"
+printf '{"type":"module"}\n' > "$runtime_dir/package.json"
 cp -R "$project_dir/dist/." "$runtime_dir/dist/"
 if [ -f "$project_dir/data/bob-inbox.json" ] && [ ! -f "$runtime_dir/data/bob-inbox.json" ]; then
   install -m 0644 "$project_dir/data/bob-inbox.json" "$runtime_dir/data/bob-inbox.json"

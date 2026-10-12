@@ -25,6 +25,9 @@ import X from "lucide-react/dist/esm/icons/x.js";
 import Zap from "lucide-react/dist/esm/icons/zap.js";
 import UserRound from "lucide-react/dist/esm/icons/user-round.js";
 import AccountPanel from "./AccountPanel.jsx";
+import MemoryScene from "./MemoryScene.jsx";
+import AnimationLibrary from "./AnimationLibrary.jsx";
+import { attachMemoryScenes, createAnimationQueue, memorySceneForCard } from "./memoryScenes.js";
 import { createDailyPlan } from "./dailyPlan.js";
 import {
   ACCOUNT_SESSION_KEY, accountCacheKey, decryptPrivateStore, emptyPrivateStore,
@@ -979,6 +982,34 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
   );
   const dueCards = dailyPlan.queue;
 
+  // The optional Mac bridge exposes only today's admitted cards, never credentials or review history.
+  useEffect(() => {
+    if (!hasLocalMacBridge() || (!legacyLocal && !account?.owner)) return undefined;
+    let disposed = false, inFlight = false;
+    const scope = account?.id || "local";
+    async function syncMemoryScenes() {
+      if (inFlight || !navigator.onLine) return;
+      inFlight = true;
+      try {
+        const queue = createAnimationQueue(dueCards, scope);
+        const saved = await fetch("/api/memory-scenes/queue", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(queue) });
+        if (!saved.ok || disposed) return;
+        const response = await fetch(`/api/memory-scenes?scope=${encodeURIComponent(scope)}`, { cache:"no-store" });
+        if (!response.ok || disposed) return;
+        const { entries } = await response.json();
+        if (!Array.isArray(entries) || disposed) return;
+        setStore(previous => attachMemoryScenes(previous, entries));
+      } catch {
+        // Review and existing saved animations continue to work if the Mac bridge is unavailable.
+      } finally { inFlight = false; }
+    }
+    syncMemoryScenes();
+    const timer = window.setInterval(syncMemoryScenes, 5000);
+    window.addEventListener("focus", syncMemoryScenes);
+    window.addEventListener("online", syncMemoryScenes);
+    return () => { disposed = true; window.clearInterval(timer); window.removeEventListener("focus", syncMemoryScenes); window.removeEventListener("online", syncMemoryScenes); };
+  }, [dailyPlan, legacyLocal, account?.id, account?.owner]);
+
   const currentCard = dueCards[0] || null;
   useEffect(() => setRevealed(false), [currentCard?.id]);
   const matureCount = activeCards.filter((card) => card.intervalDays >= 21).length;
@@ -1588,6 +1619,9 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
           收件箱
           {draftCards.length > 0 && <span className="count-badge">{draftCards.length}</span>}
         </button>
+        <button className={view === "animations" ? "active" : ""} type="button" onClick={() => setView("animations")}>
+          <Eye size={18} />记忆动画
+        </button>
       </nav>
 
       <main>
@@ -1622,6 +1656,8 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
             onSpeak={speak}
             onAdd={openNewCard}
           />
+        ) : view === "animations" ? (
+          <AnimationLibrary cards={activeCards} />
         ) : view === "library" ? (
           <LibraryView
             cards={visibleCards}
@@ -2125,6 +2161,7 @@ function ReviewView({
                 </IconButton>
               </div>
             )}
+            <MemoryScene key={currentCard.id} card={currentCard} />
             {currentCard.memoryHook && (
               <div className="memory-hook">
                 <Sparkles size={17} />
@@ -2252,8 +2289,10 @@ function LibraryView({
               <div className="meaning-cell">
                 <p>{card.meaning}</p>
                 <span>{card.personalExample || card.originalLine}</span>
+                <MemoryScene key={card.id} card={card} />
               </div>
               <div className="status-cell">
+                {memorySceneForCard(card) && <small className="memory-scene-badge">Animation ready</small>}
                 <span className={dailyPlan.queuedIds.has(card.id) ? "due-pill" : "date-pill"}>
                   {dailyPlan.queuedIds.has(card.id) ? "待复习" : formatDue(dailyPlan.scheduledAt.get(card.id) || card.dueAt)}
                 </span>

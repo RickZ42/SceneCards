@@ -12,6 +12,16 @@ than extra text shown after the answer. Revealing the answer automatically reads
 the target expression aloud. The complete representative sentence remains
 available from its speaker button.
 
+## Memory animations
+
+After revealing an answer, use **Watch memory animation** and **Play**. Scenes
+have Pause, Restart and Replay and also open in the library. They are saved with
+the card and included in backups and private account sync. Playback does not
+change review progress. The mobile app also includes a **记忆动画** page with 30
+reusable scenes, cached for offline playback, and selects matching meanings for
+review cards. Private custom scenes sync with the same private account. The Mac's optional daily-generation bridge checks the
+actual day's queue and adds only missing scenes. See [memory animation guidance](docs/memory-animations.md).
+
 ## Daily Workload
 
 Each local calendar day admits at most 30 different words or expressions, in
