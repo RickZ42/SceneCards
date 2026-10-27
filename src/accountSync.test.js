@@ -42,6 +42,24 @@ test("offline deleted cards stay deleted while other cards and review history ar
   assert.equal(mergePrivateStores(restored, merged).cards.length, 2);
 });
 
+test("private sync retains legacy hard review events without changing card schedules", async context => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  const card = { id: "legacy", expression: "example", dueAt: "2026-10-29T08:00:00Z", intervalDays: 2, ease: 2.3, repetitions: 4, lapses: 1, lastReviewedAt: "2026-10-27T08:00:00Z", reviewQueueOrder: 7 };
+  const review = { id: "old-hard", cardId: card.id, at: "2026-10-27T08:00:00Z", rating: "hard" };
+  const local = store(card, [review]);
+  assert.deepEqual(mergePrivateStores(local, emptyPrivateStore()), local);
+  const owner = { ...alice, owner: true };
+  let uploaded;
+  globalThis.fetch = async (url, options) => {
+    if (options.method !== "PUT") return Response.json({ revision: 0, document: null });
+    uploaded = await decryptPrivateStore(JSON.parse(options.body).document, owner);
+    return Response.json({ revision: 1 });
+  };
+  assert.deepEqual(await migrateLocalCollection(owner, local), local);
+  assert.deepEqual(uploaded, local);
+});
+
 test("sync retries a stale revision, preserves simultaneous local edits, and avoids unchanged writes", async (context) => {
   const originalFetch = globalThis.fetch;
   context.after(() => { globalThis.fetch = originalFetch; });

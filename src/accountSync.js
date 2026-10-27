@@ -82,7 +82,8 @@ export function mergePrivateStores(local, remote) {
   for (const [id, at] of Object.entries(local.deletedCards || {})) if (compare(at, deletedCards[id]) > 0) deletedCards[id] = at;
   const reviewsById = new Map();
   for (const review of [...(remote.reviews || []), ...(local.reviews || [])]) {
-    if (review.id && review.cardId && review.at && ["again", "good", "easy"].includes(review.rating)) reviewsById.set(review.id, review);
+    // Keep historical hard ratings even though the current review UI no longer offers that button.
+    if (review.id && review.cardId && review.at && ["again", "hard", "good", "easy"].includes(review.rating)) reviewsById.set(review.id, review);
   }
   const reviews = [...reviewsById.values()].sort((a, b) => compare(a.at, b.at) || compare(a.id, b.id));
   const latest = new Map();
