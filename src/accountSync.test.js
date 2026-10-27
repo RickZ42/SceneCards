@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { accountCacheKey, decryptPrivateStore, emptyPrivateStore, encryptPrivateStore, loadAccountCache, mergePrivateStores, syncPrivateStore } from "./accountSync.js";
+import { accountCacheKey, decryptPrivateStore, emptyPrivateStore, encryptPrivateStore, loadAccountCache, mergePrivateStores, migrateLocalCollection, syncPrivateStore } from "./accountSync.js";
 
 const alice = { id: "alice", code: "sc1_" + "a".repeat(43), endpoint: "https://test.example" };
 const bob = { ...alice, id: "bob", code: "sc1_" + "b".repeat(43) };
@@ -67,4 +67,70 @@ test("sync retries a stale revision, preserves simultaneous local edits, and avo
   local = merged;
   await syncPrivateStore(alice, () => local);
   assert.equal(putCount, 2);
+});
+
+test("explicit owner migration encrypts all local cards and progress without modifying the source", async context => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  const owner = { ...alice, owner: true };
+  const local = store({ id: "phrase", practiceType: "expression", meaning: "manual meaning", dueAt: "2026-10-28T08:00:00Z", lastReviewedAt: "2026-10-27T08:00:00Z", repetitions: 2 }, [{ id: "r1", cardId: "phrase", at: "2026-10-27T08:00:00Z", rating: "good" }]);
+  const before = structuredClone(local);
+  let uploaded;
+  globalThis.fetch = async (url, options) => {
+    if (options.method !== "PUT") return Response.json({ revision: 0, document: null });
+    const body = JSON.parse(options.body);
+    assert.equal(body.baseRevision, 0);
+    assert.equal(body.document.encryption, "AES-256-GCM");
+    assert(!options.body.includes("manual meaning"));
+    uploaded = await decryptPrivateStore(body.document, owner);
+    return Response.json({ revision: 1 });
+  };
+  const migrated = await migrateLocalCollection(owner, local);
+  assert.deepEqual(migrated, local);
+  assert.deepEqual(uploaded, local);
+  assert.deepEqual(local, before);
+});
+
+for (const conflict of [
+  { meaning: "different cloud content", contentUpdatedAt: "2026-10-28T08:00:00Z" },
+  { lastReviewedAt: "2026-10-28T08:00:00Z", dueAt: "2026-11-10T08:00:00Z" },
+]) {
+  test(`desktop migration refuses a conflicting cloud copy before any write: ${Object.keys(conflict)[0]}`, async context => {
+    const originalFetch = globalThis.fetch;
+    context.after(() => { globalThis.fetch = originalFetch; });
+    const owner = { ...alice, owner: true };
+    const local = store({ id: "a", meaning: "computer meaning", contentUpdatedAt: "2026-10-27T08:00:00Z", lastReviewedAt: "2026-10-27T08:00:00Z", dueAt: "2026-10-29T08:00:00Z" });
+    const before = structuredClone(local);
+    const document = await encryptPrivateStore(store({ ...local.cards[0], ...conflict }), owner);
+    let writes = 0;
+    globalThis.fetch = async (url, options) => {
+      if (options.method === "PUT") { writes++; return Response.json({ revision: 5 }); }
+      return Response.json({ revision: 4, document });
+    };
+    await assert.rejects(() => migrateLocalCollection(owner, local), /冲突/);
+    assert.equal(writes, 0);
+    assert.deepEqual(local, before);
+  });
+}
+
+test("migration rechecks a changed cloud revision and never overwrites a new conflict", async context => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  const owner = { ...alice, owner: true };
+  const local = store({ id: "a", meaning: "computer", contentUpdatedAt: "2026-10-27T08:00:00Z" });
+  const changed = await encryptPrivateStore(store({ ...local.cards[0], meaning: "new cloud edit", contentUpdatedAt: "2026-10-28T08:00:00Z" }), owner);
+  let writes = 0;
+  globalThis.fetch = async (url, options) => {
+    if (options.method === "PUT") { writes++; return Response.json({}, { status: 409 }); }
+    return Response.json(writes ? { revision: 1, document: changed } : { revision: 0, document: null });
+  };
+  await assert.rejects(() => migrateLocalCollection(owner, local), /冲突/);
+  assert.equal(writes, 1);
+});
+
+test("ordinary account cache loading never reads another device's legacy collection", async () => {
+  const keys = [];
+  const storage = { getItem(key) { keys.push(key); return null; } };
+  assert.deepEqual(await loadAccountCache(alice, storage), emptyPrivateStore());
+  assert.deepEqual(keys, [accountCacheKey(alice.id)]);
 });

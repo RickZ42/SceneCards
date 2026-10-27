@@ -253,6 +253,7 @@ textarea:focus-visible {
 
 .view-tabs {
   height: 56px;
+  overflow-x: auto;
   gap: 24px;
   padding: 0 max(24px, calc((100vw - 1180px) / 2));
   background: var(--surface);
@@ -261,6 +262,7 @@ textarea:focus-visible {
 
 .view-tabs button {
   position: relative;
+  flex-shrink: 0;
   height: 56px;
   display: flex;
   align-items: center;
@@ -301,6 +303,43 @@ textarea:focus-visible {
   background: var(--coral-soft);
   border-radius: 11px;
   font-size: 12px;
+}
+
+.expression-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.expression-toolbar h1 {
+  margin: 4px 0 0;
+  font-size: 24px;
+}
+
+.expression-toolbar > div > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.expression-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.expression-practice .expression-row h1 {
+  font-size: 32px;
+  line-height: 1.25;
+}
+
+.expression-practice .recall-sentence {
+  font-size: 23px;
+  line-height: 1.65;
+  white-space: pre-line;
 }
 
 main {

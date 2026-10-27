@@ -24,16 +24,38 @@ actual day's queue and adds only missing scenes. See [memory animation guidance]
 
 ## Daily Workload
 
-Each local calendar day admits at most 30 different words or expressions, in
-the existing due-queue order. Completed words still consume that day's allowance;
-refreshing or finishing a card does not pull in a 31st word. Forgotten words stay
+Each local calendar day admits at most 30 different words or expressions. Due
+words studied before take priority; unstudied due words fill any remaining slots.
+Slots are reserved for learned words due later today, but they enter the review
+queue only when due. Within each group, the existing due-queue order is preserved.
+Completed words still consume that day's allowance; refreshing or finishing a
+card does not pull in a 31st word. Forgotten words stay
 at the end of today's queue and repeated attempts consume only one slot.
 
 Excess words carry forward into later days, with a visible forecast of up to 30
-words per day. Forecasts update as cards are reviewed or added. This workload
-layer does not rewrite the underlying spaced-review intervals or review history.
+words per day, applying the same priority among words due by each day. Future
+words are never pulled forward before their due date. Forecasts update as cards
+are reviewed or added. This workload layer does not rewrite the underlying
+spaced-review intervals or review history.
 The allowance is derived from review history and last-reviewed timestamps, so
 account sync also carries it between devices using the same local calendar day.
+
+## Daily Conversation
+
+The **生活口语** tab has its own daily allowance of 10 expressions. It does not
+consume any of the 30 vocabulary slots. Cards explicitly marked with
+`practiceType: "expression"` belong to this track; existing unmarked cards remain
+in vocabulary review without migration or schedule changes. Review events are
+filtered by track before calculating either allowance, forecast or vocabulary
+streak. Backups and private sync retain the track marker with the card.
+
+Conversation cards show the situation first and reveal the reference expression,
+translation, example and memory cue only after recall. They reuse the existing
+speech and spaced-review scheduler, with an independent queue. Choose
+**添加生活口语** in that tab, or **学习板块 → 生活口语** in the card editor.
+Repeated expressions are rejected within this track, ignoring case, whitespace,
+curly quotes and terminal punctuation. Creating a card never records a practice
+attempt; only the user's rating does.
 
 ## Run locally
 
@@ -56,6 +78,11 @@ can use `Connect existing mobile inbox account` on their Mac to migrate that
 browser's collection without changing its cards or schedule. Its original local
 data remains available as a migration backup. Connect the Mac with the correct
 progress first; then use the same owner code on the phone.
+
+This explicit connection checks the cloud merge before uploading. Conflicting
+content, deletions or scheduling changes stop the migration without replacing
+the desktop collection. Ordinary sign-in on another device does not silently
+import that device's legacy local collection into the shared account.
 
 The owner can generate a single-use invitation for a friend. Invitations expire
 after seven days. Redeeming an invitation creates an empty account with a new

@@ -13,6 +13,7 @@ import Flame from "lucide-react/dist/esm/icons/flame.js";
 import Inbox from "lucide-react/dist/esm/icons/inbox.js";
 import Laptop from "lucide-react/dist/esm/icons/laptop.js";
 import Library from "lucide-react/dist/esm/icons/library.js";
+import MessagesSquare from "lucide-react/dist/esm/icons/messages-square.js";
 import Plus from "lucide-react/dist/esm/icons/plus.js";
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.js";
 import Search from "lucide-react/dist/esm/icons/search.js";
@@ -28,10 +29,10 @@ import AccountPanel from "./AccountPanel.jsx";
 import MemoryScene from "./MemoryScene.jsx";
 import AnimationLibrary from "./AnimationLibrary.jsx";
 import { attachMemoryScenes, createAnimationQueue, memorySceneForCard } from "./memoryScenes.js";
-import { createDailyPlan } from "./dailyPlan.js";
+import { createPracticeTracks, isExpressionPracticeCard, normalizePracticeExpression } from "./practiceTracks.js";
 import {
   ACCOUNT_SESSION_KEY, accountCacheKey, decryptPrivateStore, emptyPrivateStore,
-  encryptPrivateStore, loadAccountCache, loadAccountSession, mergePrivateStores,
+  encryptPrivateStore, loadAccountCache, loadAccountSession, mergePrivateStores, migrateLocalCollection,
   signInAccount, syncPrivateStore,
 } from "./accountSync.js";
 import {
@@ -146,6 +147,7 @@ const exploitCard = {
 const bundledCards = [];
 
 const emptyForm = {
+  practiceType: "vocabulary",
   expression: "",
   pronunciation: "",
   difficulty: "",
@@ -651,6 +653,7 @@ function DifficultyBadge({ level }) {
 function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, onAccountStatus, privateSyncRef }) {
   const [store, setStore] = useState(() => initialStore || loadStore(storageKey));
   const [view, setView] = useState("review");
+  const [expressionMode, setExpressionMode] = useState("practice");
   const [revealed, setRevealed] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -967,20 +970,23 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
     audioRef.current = null;
   }, []);
 
-  const activeCards = useMemo(
-    () => store.cards.filter((card) => !isDraft(card)),
-    [store.cards],
+  const tracks = useMemo(
+    () => createPracticeTracks(store.cards, store.reviews, now),
+    [store.cards, store.reviews, now],
   );
+  const activeCards = tracks.words;
+  const expressionCards = tracks.expressions;
   const draftCards = useMemo(
     () => store.cards.filter(isDraft),
     [store.cards],
   );
 
-  const dailyPlan = useMemo(
-    () => createDailyPlan(activeCards, store.reviews, now),
-    [activeCards, store.reviews, now],
-  );
+  const dailyPlan = tracks.wordPlan;
+  const expressionPlan = tracks.expressionPlan;
   const dueCards = dailyPlan.queue;
+  const expressionPractice = view === "expressions";
+  const practicePlan = expressionPractice ? expressionPlan : dailyPlan;
+  const practiceQueue = practicePlan.queue;
 
   // The optional Mac bridge exposes only today's admitted cards, never credentials or review history.
   useEffect(() => {
@@ -1010,20 +1016,23 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
     return () => { disposed = true; window.clearInterval(timer); window.removeEventListener("focus", syncMemoryScenes); window.removeEventListener("online", syncMemoryScenes); };
   }, [dailyPlan, legacyLocal, account?.id, account?.owner]);
 
-  const currentCard = dueCards[0] || null;
+  const currentCard = practiceQueue[0] || null;
   useEffect(() => setRevealed(false), [currentCard?.id]);
   const matureCount = activeCards.filter((card) => card.intervalDays >= 21).length;
-  const streak = calculateStreak(store.reviews);
+  const streak = calculateStreak(tracks.wordReviews);
   const nextCard = [...activeCards]
     .filter((card) => new Date(dailyPlan.scheduledAt.get(card.id)).getTime() > now)
     .sort((a, b) => new Date(dailyPlan.scheduledAt.get(a.id)) - new Date(dailyPlan.scheduledAt.get(b.id)))[0];
   const nextDueAt = nextCard ? dailyPlan.scheduledAt.get(nextCard.id) : null;
+  const nextExpressionDueAt = [...expressionPlan.scheduledAt.values()]
+    .filter(at => new Date(at).getTime() > now)
+    .sort((a, b) => new Date(a) - new Date(b))[0] || null;
 
   const visibleCards = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return [...activeCards]
+    return [...(expressionPractice ? expressionCards : activeCards)]
       .filter((card) => {
-        if (filter === "due" && !dailyPlan.queuedIds.has(card.id)) return false;
+        if (filter === "due" && !practicePlan.queuedIds.has(card.id)) return false;
         if (filter === "learning" && card.intervalDays >= 21) return false;
         if (filter === "mature" && card.intervalDays < 21) return false;
         if (!needle) return true;
@@ -1042,11 +1051,12 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
           .includes(needle);
       })
       .sort((a, b) => a.expression.localeCompare(b.expression));
-  }, [activeCards, filter, dailyPlan, query]);
+  }, [activeCards, expressionCards, expressionPractice, filter, practicePlan, query]);
 
   useEffect(() => {
     function handleKeyDown(event) {
-      if (modalOpen || view !== "review" || !currentCard) return;
+      if (modalOpen || !["review", "expressions"].includes(view) || (expressionPractice && expressionMode !== "practice") || !currentCard) return;
+      if (event.target instanceof Element && event.target.closest("input, textarea, select, button, [contenteditable=true]")) return;
       if (event.code === "Space") {
         event.preventDefault();
         revealAnswer();
@@ -1121,7 +1131,7 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
     audioRef.current = null;
     let reviewed = scheduleCard(currentCard, rating);
     if (rating === "again") {
-      reviewed = moveCardToReviewQueueEnd(reviewed, dueCards, now);
+      reviewed = moveCardToReviewQueueEnd(reviewed, practiceQueue, now);
     } else {
       reviewed = { ...reviewed, reviewQueueOrder: undefined };
     }
@@ -1166,7 +1176,7 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
 
   function openNewCard() {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, practiceType: expressionPractice ? "expression" : "vocabulary" });
     setModalOpen(true);
   }
 
@@ -1174,6 +1184,7 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
     const choosingTarget = Boolean(card.needsTarget);
     setEditingId(card.id);
     setForm({
+      practiceType: isExpressionPracticeCard(card) ? "expression" : "vocabulary",
       expression: choosingTarget ? "" : card.expression,
       pronunciation: card.pronunciation || "",
       difficulty: normalizeDifficulty(card.difficulty),
@@ -1206,6 +1217,12 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
       memoryHookSource: form.memoryHook.trim() ? "manual" : undefined,
     };
     if (!values.expression || !values.meaning) return;
+    if (values.practiceType === "expression" && store.cards.some(card =>
+      card.id !== editingId && isExpressionPracticeCard(card) &&
+      normalizePracticeExpression(card.expression) === normalizePracticeExpression(values.expression))) {
+      setToast("这条生活口语已存在，无需重复添加");
+      return;
+    }
     if (!values.personalExample.trim() || !values.exampleMeaning.trim()) {
       setToast("请先补全代表性例句和整句中文意思");
       return;
@@ -1230,8 +1247,8 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
         ),
       }));
       if (wasDraft) {
-        setView("review");
-        setToast("已整理并加入今天的复习");
+        setView(values.practiceType === "expression" ? "expressions" : "review");
+        setToast(values.practiceType === "expression" ? "已加入生活口语" : "已整理并加入今天的复习");
       } else {
         setToast("卡片已更新");
       }
@@ -1252,11 +1269,13 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
         ...previous,
         cards: [card, ...previous.cards],
       }));
-      setView("review");
-      setToast("新卡片已加入今天的复习");
+      setView(values.practiceType === "expression" ? "expressions" : "review");
+      setExpressionMode("practice");
+      setToast(values.practiceType === "expression" ? "新表达已加入生活口语" : "新卡片已加入今天的复习");
     }
     setModalOpen(false);
     setRevealed(false);
+    setNow(Date.now());
   }
 
   function deleteCard(card) {
@@ -1603,6 +1622,14 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
           {dueCards.length > 0 && <span className="count-badge">{dueCards.length}</span>}
         </button>
         <button
+          className={expressionPractice ? "active" : ""}
+          type="button"
+          onClick={() => { setView("expressions"); setRevealed(false); setQuery(""); setFilter("all"); }}
+        >
+          <MessagesSquare size={18} />生活口语
+          {expressionPlan.queue.length > 0 && <span className="count-badge">{expressionPlan.queue.length}</span>}
+        </button>
+        <button
           className={view === "library" ? "active" : ""}
           type="button"
           onClick={() => setView("library")}
@@ -1628,23 +1655,45 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
         <section className="stats-strip" aria-label="学习概况">
           <div>
             <span className="stat-icon coral"><CalendarClock size={18} /></span>
-            <p><strong>{dueCards.length}</strong><span>今日待复习</span></p>
+            <p><strong>{expressionPractice ? expressionPlan.queue.length : dueCards.length}</strong><span>{expressionPractice ? "今日待练" : "今日待复习"}</span></p>
           </div>
           <div>
             <span className="stat-icon teal"><Check size={18} /></span>
-            <p><strong>{matureCount}</strong><span>长期记住</span></p>
+            <p><strong>{expressionPractice ? `${expressionPlan.reviewedCount} / 10` : matureCount}</strong><span>{expressionPractice ? "今日口语" : "长期记住"}</span></p>
           </div>
           <div>
             <span className="stat-icon gold"><Flame size={18} /></span>
-            <p><strong>{streak}</strong><span>连续天数</span></p>
+            <p><strong>{expressionPractice ? `${dailyPlan.reviewedCount} / 30` : streak}</strong><span>{expressionPractice ? "今日单词" : "连续天数"}</span></p>
           </div>
           <div>
             <span className="stat-icon ink"><BookOpen size={18} /></span>
-            <p><strong>{activeCards.length}</strong><span>全部表达</span></p>
+            <p><strong>{expressionPractice ? expressionCards.length : activeCards.length}</strong><span>{expressionPractice ? "全部口语" : "全部表达"}</span></p>
           </div>
         </section>
 
-        {view === "review" ? (
+        {expressionPractice ? (
+          <>
+            <div className="expression-toolbar">
+              <div><span>DAILY CONVERSATION</span><h1>生活口语</h1></div>
+              <div className="expression-tools">
+                <div className="segmented-control" aria-label="生活口语视图">
+                  <button type="button" className={expressionMode === "practice" ? "active" : ""} onClick={() => setExpressionMode("practice")}>今日练习</button>
+                  <button type="button" className={expressionMode === "library" ? "active" : ""} onClick={() => setExpressionMode("library")}>全部表达</button>
+                </div>
+                <IconButton label="添加生活口语" onClick={openNewCard}><Plus size={18} /></IconButton>
+              </div>
+            </div>
+            {expressionMode === "practice" ? (
+              <ReviewView currentCard={currentCard} dueCards={practiceQueue} dailyPlan={expressionPlan}
+                nextDueAt={nextExpressionDueAt} revealed={revealed} onReveal={revealAnswer}
+                onRate={rateCard} onSpeak={speak} onAdd={openNewCard} expressionPractice />
+            ) : (
+              <LibraryView cards={visibleCards} dailyPlan={expressionPlan} query={query} filter={filter}
+                onQuery={setQuery} onFilter={setFilter} onEdit={openEditCard} onDelete={deleteCard}
+                onSpeak={speak} onAdd={openNewCard} />
+            )}
+          </>
+        ) : view === "review" ? (
           <ReviewView
             currentCard={currentCard}
             dueCards={dueCards}
@@ -2048,16 +2097,17 @@ function ReviewView({
   onRate,
   onSpeak,
   onAdd,
+  expressionPractice = false,
 }) {
   if (!currentCard) {
     return (
       <section className="empty-review">
         <span className="empty-icon"><Check size={30} /></span>
-        <h1>今天的卡片完成了</h1>
+        <h1>{expressionPractice ? "当前到期的生活口语已完成" : "当前到期的卡片已完成"}</h1>
         <p>{nextDueAt ? `下一次复习：${formatDue(nextDueAt)}` : "还没有待安排的卡片。"}</p>
-        <DailyPlan plan={dailyPlan} />
+        <DailyPlan plan={dailyPlan} expressionPractice={expressionPractice} />
         <button className="primary-button" type="button" onClick={onAdd}>
-          <Plus size={18} />添加卡片
+          <Plus size={18} />{expressionPractice ? "添加生活口语" : "添加卡片"}
         </button>
       </section>
     );
@@ -2067,7 +2117,7 @@ function ReviewView({
 
   return (
     <div className="review-layout">
-      <section className={`study-card ${revealed ? "revealed" : ""}`}>
+      <section className={`study-card ${revealed ? "revealed" : ""} ${expressionPractice ? "expression-practice" : ""}`}>
         <div className="card-kicker">
           <div className="word-meta">
             <span>{currentCard.source || "Daily life"}</span>
@@ -2076,10 +2126,10 @@ function ReviewView({
           <span>{dueCards.length} 张待复习</span>
         </div>
 
-        {!revealed && cloze ? (
+        {!revealed && (cloze || expressionPractice) ? (
           <div className="recall-heading">
-            <span>CONTEXT RECALL</span>
-            <h1>哪一个英语表达适合这里？</h1>
+            <span>{expressionPractice ? "SPEAKING PRACTICE" : "CONTEXT RECALL"}</span>
+            <h1>{expressionPractice ? "这个场景，你会怎么说？" : "哪一个英语表达适合这里？"}</h1>
           </div>
         ) : (
           <div className="expression-row">
@@ -2097,7 +2147,12 @@ function ReviewView({
           </div>
         )}
 
-        {cloze ? (
+        {expressionPractice ? (
+          <>
+            <blockquote className="recall-sentence">{revealed ? currentCard.personalExample : currentCard.sceneContext || currentCard.exampleMeaning}</blockquote>
+            {revealed && <p className="recall-meaning">{currentCard.exampleMeaning}</p>}
+          </>
+        ) : cloze ? (
           <>
             <blockquote className="recall-sentence">
               {revealed ? (
@@ -2118,7 +2173,7 @@ function ReviewView({
 
         {!revealed ? (
           <div className="recall-panel">
-            <p>{cloze ? "先在脑中说出完整句子，再看答案。" : "这一幕里，它是什么意思？"}</p>
+            <p>{expressionPractice ? "先开口说一句，再看参考表达。" : cloze ? "先在脑中说出完整句子，再看答案。" : "这一幕里，它是什么意思？"}</p>
             <button className="reveal-button" type="button" onClick={onReveal}>
               <Eye size={19} />显示答案
             </button>
@@ -2173,13 +2228,13 @@ function ReviewView({
 
         <div className={`rating-row ${revealed ? "visible" : ""}`}>
           <button className="rating again" type="button" onClick={() => onRate("again")}>
-            <strong>忘了</strong><span>队尾再练</span>
+            <strong>{expressionPractice ? "再练一次" : "忘了"}</strong><span>队尾再练</span>
           </button>
           <button className="rating good" type="button" onClick={() => onRate("good")}>
-            <strong>记得</strong><span>按进度</span>
+            <strong>{expressionPractice ? "说得出" : "记得"}</strong><span>按进度</span>
           </button>
           <button className="rating easy" type="button" onClick={() => onRate("easy")}>
-            <strong>很熟</strong><span>延长间隔</span>
+            <strong>{expressionPractice ? "很顺口" : "很熟"}</strong><span>延长间隔</span>
           </button>
         </div>
       </section>
@@ -2188,7 +2243,7 @@ function ReviewView({
         <div className="section-heading">
           <div>
             <span>QUEUE</span>
-            <h2>今天的队列</h2>
+            <h2>{expressionPractice ? "今天的口语" : "今天的队列"}</h2>
           </div>
           <span className="queue-total">{dueCards.length}</span>
         </div>
@@ -2196,27 +2251,28 @@ function ReviewView({
           {dueCards.slice(0, 6).map((card, index) => (
             <div className={index === 0 ? "queue-item current" : "queue-item"} key={card.id}>
               <span className="queue-number">{String(index + 1).padStart(2, "0")}</span>
-              <div><strong>{card.expression}</strong><span>{card.source || "Daily life"}</span></div>
+              <div><strong>{expressionPractice ? card.meaning.split("\n")[0] : card.expression}</strong><span>{card.source || "Daily life"}</span></div>
               {index === 0 && <ChevronRight size={17} />}
             </div>
           ))}
         </div>
         {dueCards.length > 6 && <p className="queue-more">另外 {dueCards.length - 6} 张</p>}
-        <DailyPlan plan={dailyPlan} />
+        <DailyPlan plan={dailyPlan} expressionPractice={expressionPractice} />
       </aside>
     </div>
   );
 }
 
-function DailyPlan({ plan }) {
+function DailyPlan({ plan, expressionPractice = false }) {
+  const unit = expressionPractice ? "个表达" : "个词";
   return <section className="daily-plan" aria-label="后续复习计划">
-    <p className="daily-progress">今日已复习 <strong>{plan.reviewedCount}</strong> / {plan.limit} 个词</p>
-    {plan.deferredCount > 0 && <p className="daily-deferred">{plan.deferredCount} 个已顺延至后续计划</p>}
+    <p className="daily-progress">{expressionPractice ? "今日已练习" : "今日已复习"} <strong>{plan.reviewedCount}</strong> / {plan.limit} {unit}</p>
+    {plan.deferredCount > 0 && <p className="daily-deferred">{plan.deferredCount} {unit}已顺延至后续计划</p>}
     {plan.futureDays.length > 0 && <>
       <h3>后续计划</h3>
       <ol>{plan.futureDays.slice(0, 3).map((day) => <li key={day.date}>
         <time dateTime={day.date}>{new Date(day.at).toLocaleDateString("zh-CN", { month: "short", day: "numeric", weekday: "short" })}</time>
-        <span>{day.count} 个词</span>
+        <span>{day.count} {unit}</span>
       </li>)}</ol>
       {plan.futureDays.length > 3 && <p className="daily-more">另有 {plan.futureDays.length - 3} 天的计划</p>}
     </>}
@@ -2342,6 +2398,13 @@ function CardModal({ form, editing, onChange, onClose, onSave }) {
         </div>
 
         <form onSubmit={onSave}>
+          <label>
+            <span>学习板块</span>
+            <select value={form.practiceType} onChange={(event) => update("practiceType", event.target.value)}>
+              <option value="vocabulary">单词复习</option>
+              <option value="expression">生活口语</option>
+            </select>
+          </label>
           <div className="form-grid card-basics">
             <label>
               <span>英语表达 *</span>
@@ -2495,17 +2558,21 @@ export default function App() {
     let disposed = false;
     setReady(false); setLoadError("");
     loadAccountCache(session).then((saved) => {
-      if (session.owner && !localStorage.getItem(accountCacheKey(session.id))) {
-        const legacy = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-        if (Array.isArray(legacy?.cards) && Array.isArray(legacy?.reviews)) saved = { ...emptyPrivateStore(), ...legacy };
-      }
       if (!disposed) { setInitialStore(saved); setReady(true); }
     }).catch((error) => { if (!disposed) setLoadError(error.message); });
     return () => { disposed = true; };
   }, [session]);
 
-  async function connect(code) {
+  async function connect(code, { migrateLocal = false } = {}) {
     const next = await signInAccount(code);
+    if (migrateLocal) {
+      const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+      if (!legacyLocal || !Array.isArray(local?.cards) || !Array.isArray(local?.reviews)) {
+        throw new Error("未找到可连接的电脑词库，未更改任何数据");
+      }
+      const migrated = await migrateLocalCollection(next, { ...emptyPrivateStore(), ...local });
+      localStorage.setItem(accountCacheKey(next.id), JSON.stringify(await encryptPrivateStore(migrated, next)));
+    }
     // Persist the private access code before mounting the account, including first invitation redemption.
     localStorage.setItem(ACCOUNT_SESSION_KEY, JSON.stringify(next));
     localStorage.setItem("scenecards.private-mode.v1", "true");
@@ -2523,7 +2590,7 @@ export default function App() {
       onAccount={() => setAccountOpen(true)} onAccountStatus={onStatus} privateSyncRef={privateSyncRef} />
       : <div className="account-loading"><BookOpen size={28} /><strong>SceneCards</strong><p>{loadError || "正在打开私人词库"}</p>{loadError && <button className="secondary-button" onClick={disconnect}>返回本机词库</button>}</div>}
     {accountOpen && <AccountPanel session={session} status={status} existingConnection={existingConnection}
-      onSignIn={connect} onExisting={() => connect(loadMobileInboxSettings().key)} onSignOut={disconnect}
+      onSignIn={connect} onExisting={() => connect(loadMobileInboxSettings().key, { migrateLocal: true })} onSignOut={disconnect}
       onSync={() => privateSyncRef.current?.()} onClose={() => setAccountOpen(false)} />}
   </>;
 }

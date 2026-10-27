@@ -125,6 +125,48 @@ export function mergePrivateStores(local, remote) {
   };
 }
 
+function canonicalJson(value) {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalJson(value[key])]));
+  }
+  return value;
+}
+
+function assertLocalCollectionPreserved(local, merged) {
+  const cards = new Map(merged.cards.map(card => [card.id, card]));
+  const reviews = new Map(merged.reviews.map(review => [review.id, review]));
+  const same = (left, right) => JSON.stringify(canonicalJson(left)) === JSON.stringify(canonicalJson(right));
+  const changed = local.cards.filter(card => !same(card, cards.get(card.id)));
+  if (changed.length || local.reviews.some(review => !same(review, reviews.get(review.id)))) {
+    throw new Error("云端记录与电脑词库存在冲突，未连接或覆盖任何进度。请先核对两端记录。");
+  }
+}
+
+// The explicit desktop migration must not let an older or conflicting cloud copy replace local work.
+export async function migrateLocalCollection(session, local) {
+  if (!session.owner) throw new Error("只有现有收件账户可以连接这份电脑词库");
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const remote = await request(session.endpoint, "/vault", { headers: headers(session.code) });
+    const remoteStore = remote.document ? await decryptPrivateStore(remote.document, session) : emptyPrivateStore();
+    const merged = mergePrivateStores(local, remoteStore);
+    assertLocalCollectionPreserved(local, merged);
+    const document = await encryptPrivateStore(merged, session);
+    const result = await fetch(`${session.endpoint}/vault`, {
+      method: "PUT", headers: headers(session.code),
+      body: JSON.stringify({ baseRevision: remote.revision, document }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (result.status === 409) continue;
+    if (!result.ok) {
+      const body = await result.json();
+      throw new Error(body.error || `连接失败（${result.status}），电脑进度未改动`);
+    }
+    return merged;
+  }
+  throw new Error("其他设备正在更新词库，尚未完成连接；电脑进度未改动");
+}
+
 export async function syncPrivateStore(session, getLocalStore) {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const remote = await request(session.endpoint, "/vault", { headers: headers(session.code) });
