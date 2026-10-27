@@ -2590,6 +2590,7 @@ export default function App() {
       onAccount={() => setAccountOpen(true)} onAccountStatus={onStatus} privateSyncRef={privateSyncRef} />
       : <div className="account-loading"><BookOpen size={28} /><strong>SceneCards</strong><p>{loadError || "正在打开私人词库"}</p>{loadError && <button className="secondary-button" onClick={disconnect}>返回本机词库</button>}</div>}
     {accountOpen && <AccountPanel session={session} status={status} existingConnection={existingConnection}
+      onConnectLocal={legacyLocal ? (code) => connect(code, { migrateLocal: true }) : undefined}
       onSignIn={connect} onExisting={() => connect(loadMobileInboxSettings().key, { migrateLocal: true })} onSignOut={disconnect}
       onSync={() => privateSyncRef.current?.()} onClose={() => setAccountOpen(false)} />}
   </>;

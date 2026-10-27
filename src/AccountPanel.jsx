@@ -9,7 +9,7 @@ import UserPlus from "lucide-react/dist/esm/icons/user-plus.js";
 import X from "lucide-react/dist/esm/icons/x.js";
 import { ACCOUNT_ENDPOINT, createAccountInvite } from "./accountSync.js";
 
-export default function AccountPanel({ session, status, existingConnection, onSignIn, onExisting, onSignOut, onSync, onClose }) {
+export default function AccountPanel({ session, status, existingConnection, onConnectLocal, onSignIn, onExisting, onSignOut, onSync, onClose }) {
   const [code, setCode] = useState("");
   const [visible, setVisible] = useState(false);
   const [name, setName] = useState("");
@@ -62,6 +62,7 @@ export default function AccountPanel({ session, status, existingConnection, onSi
         <label><span>邀请码或私人访问码</span><input autoFocus required type={visible ? "text" : "password"} value={code} onChange={(event) => setCode(event.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} /></label>
         <label className="account-show-code"><input type="checkbox" checked={visible} onChange={(event) => setVisible(event.target.checked)} />显示访问码</label>
         <button className="primary-button" type="submit" disabled={busy}><LogIn size={18} />{busy ? "正在连接" : "登录"}</button>
+        {onConnectLocal && <button type="button" className="secondary-button" disabled={busy || !code.trim()} onClick={() => run(() => onConnectLocal(code))}><LogIn size={18} />以本机词库连接账户</button>}
         {existingConnection && <button type="button" className="secondary-button" disabled={busy} onClick={() => run(onExisting)}><LogIn size={18} />连接现有手机收件账户</button>}
       </form>}
       {message && <p className="account-message" role="alert">{message}</p>}
