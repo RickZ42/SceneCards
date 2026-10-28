@@ -32,7 +32,7 @@ import { attachMemoryScenes, createAnimationQueue, memorySceneForCard } from "./
 import { createPracticeTracks, isExpressionPracticeCard, normalizePracticeExpression } from "./practiceTracks.js";
 import {
   ACCOUNT_SESSION_KEY, accountCacheKey, decryptPrivateStore, emptyPrivateStore,
-  encryptPrivateStore, loadAccountCache, loadAccountSession, mergePrivateStores, migrateLocalCollection,
+  desktopConflictIds, encryptPrivateStore, loadAccountCache, loadAccountSession, mergePrivateStores, migrateLocalCollection,
   signInAccount, syncPrivateStore,
 } from "./accountSync.js";
 import {
@@ -650,7 +650,7 @@ function DifficultyBadge({ level }) {
   );
 }
 
-function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, onAccountStatus, privateSyncRef }) {
+function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, onAccountStatus, privateSyncRef, privateStoreRef }) {
   const [store, setStore] = useState(() => initialStore || loadStore(storageKey));
   const [view, setView] = useState("review");
   const [expressionMode, setExpressionMode] = useState("practice");
@@ -688,6 +688,7 @@ function CardApp({ account, initialStore, storageKey, legacyLocal, onAccount, on
   const privateQueuedRef = useRef(false);
   const aliveRef = useRef(true);
   const cacheWriteRef = useRef(Promise.resolve());
+  privateStoreRef.current = { getStore: () => storeRef.current, flush: () => cacheWriteRef.current };
   const [privateStatus, setPrivateStatus] = useState({ state: "idle", message: "等待同步" });
 
   useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
@@ -2538,6 +2539,7 @@ export default function App() {
   const [loadError, setLoadError] = useState("");
   const [status, setStatus] = useState({ state: "idle", message: "等待同步" });
   const privateSyncRef = useRef(null);
+  const privateStoreRef = useRef(null);
   const onStatus = useCallback((value) => setStatus(value), []);
   const legacyLocal = !session && !localStorage.getItem("scenecards.private-mode.v1") && Boolean(localStorage.getItem(STORAGE_KEY));
   const localKey = legacyLocal ? STORAGE_KEY : "scenecards.guest.v2";
@@ -2585,12 +2587,46 @@ export default function App() {
     setSession(null); setInitialStore(null); setReady(true); setAccountOpen(false); setLoadError("");
   }
 
+  function previewDesktopBackup(backup) {
+    if (!session?.owner || !privateStoreRef.current) throw new Error("请先登录现有私人收件账户");
+    const current = privateStoreRef.current.getStore();
+    const ids = new Set(backup.cards.map(card => card.id));
+    return { conflictIds: desktopConflictIds(backup, current), extraCount: current.cards.filter(card => !ids.has(card.id)).length };
+  }
+
+  async function migrateDesktopBackup(backup, approvedConflictIds) {
+    if (!session?.owner || !privateStoreRef.current) throw new Error("请先登录现有私人收件账户");
+    if (!Array.isArray(approvedConflictIds)) throw new Error("请先核对迁入预览");
+    const device = privateStoreRef.current;
+    const before = device.getStore();
+    const sameAccount = () => {
+      const current = loadAccountSession();
+      return current?.id === session.id && current.code === session.code;
+    };
+    setReady(false);
+    try {
+      await device.flush();
+      const migrated = await migrateLocalCollection(session, backup, { preferLocal: true, approvedConflictIds, currentStore: before, canWrite: sameAccount });
+      if (!sameAccount()) throw new Error("账户已改变，请回到原账户核对迁入结果");
+      localStorage.setItem(accountCacheKey(session.id), JSON.stringify(await encryptPrivateStore(migrated, session)));
+      setInitialStore(migrated);
+      setStatus({ state: "synced", message: "电脑词库已迁入，原复习记录已保留" });
+    } catch (error) {
+      if (sameAccount()) setInitialStore(before);
+      throw error;
+    } finally {
+      if (sameAccount()) setReady(true);
+    }
+  }
+
   return <>
     {ready ? <CardApp key={session?.id || localKey} account={session} initialStore={initialStore} storageKey={localKey} legacyLocal={legacyLocal}
-      onAccount={() => setAccountOpen(true)} onAccountStatus={onStatus} privateSyncRef={privateSyncRef} />
+      onAccount={() => setAccountOpen(true)} onAccountStatus={onStatus} privateSyncRef={privateSyncRef} privateStoreRef={privateStoreRef} />
       : <div className="account-loading"><BookOpen size={28} /><strong>SceneCards</strong><p>{loadError || "正在打开私人词库"}</p>{loadError && <button className="secondary-button" onClick={disconnect}>返回本机词库</button>}</div>}
     {accountOpen && <AccountPanel session={session} status={status} existingConnection={existingConnection}
       onConnectLocal={legacyLocal ? (code) => connect(code, { migrateLocal: true }) : undefined}
+      onMigrateDesktop={session?.owner ? migrateDesktopBackup : undefined}
+      onPreviewDesktop={session?.owner ? previewDesktopBackup : undefined}
       onSignIn={connect} onExisting={() => connect(loadMobileInboxSettings().key, { migrateLocal: true })} onSignOut={disconnect}
       onSync={() => privateSyncRef.current?.()} onClose={() => setAccountOpen(false)} />}
   </>;

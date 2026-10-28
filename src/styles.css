@@ -41,6 +41,9 @@
 .account-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .account-invite { border-top: 1px solid var(--line); padding-top: 20px; }
 .account-modal .account-invite { padding: 20px 0 0; }
+.account-migration { display: grid; gap: 16px; border-top: 1px solid var(--line); padding-top: 20px; }
+.account-migration h3 { margin: 0; }
+.account-migration input[type="file"] { max-width: 100%; min-width: 0; }
 .account-modal .account-message { margin: 0 20px 20px; }
 .topbar .brand div span { display: block; }
 .invite-result { display: grid; gap: 12px; }

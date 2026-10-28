@@ -84,6 +84,14 @@ content, deletions or scheduling changes stop the migration without replacing
 the desktop collection. Ordinary sign-in on another device does not silently
 import that device's legacy local collection into the shared account.
 
+After reviewing conflicts, the owner can select a desktop JSON backup in the
+account panel and explicitly choose the desktop card versions. This merge keeps
+cloud-only items, all review history and the desktop schedule; it is not the
+whole-library restore action. Approved content conflicts receive a new content
+version timestamp so an older device cache cannot undo the choice. New review
+activity, unapproved conflicts, deletion conflicts or an account change stop the
+migration before upload. A stale cloud revision is checked again, never forced.
+
 The owner can generate a single-use invitation for a friend. Invitations expire
 after seven days. Redeeming an invitation creates an empty account with a new
 private access code that is returned only to the recipient. Keep that code for

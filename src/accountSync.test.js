@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { accountCacheKey, decryptPrivateStore, emptyPrivateStore, encryptPrivateStore, loadAccountCache, mergePrivateStores, migrateLocalCollection, syncPrivateStore } from "./accountSync.js";
+import { accountCacheKey, decryptPrivateStore, desktopConflictIds, emptyPrivateStore, encryptPrivateStore, loadAccountCache, mergeApprovedDesktopStore, mergePrivateStores, migrateLocalCollection, readDesktopBackup, syncPrivateStore } from "./accountSync.js";
 
 const alice = { id: "alice", code: "sc1_" + "a".repeat(43), endpoint: "https://test.example" };
 const bob = { ...alice, id: "bob", code: "sc1_" + "b".repeat(43) };
@@ -151,4 +151,102 @@ test("ordinary account cache loading never reads another device's legacy collect
   const storage = { getItem(key) { keys.push(key); return null; } };
   assert.deepEqual(await loadAccountCache(alice, storage), emptyPrivateStore());
   assert.deepEqual(keys, [accountCacheKey(alice.id)]);
+});
+
+test("desktop backup validation retains complete card fields and historical hard events", () => {
+  const source = store({ id: "a", expression: "word", practiceType: "expression", customSchedule: { stability: 3 } }, [{ id: "r", cardId: "a", rating: "hard", at: "2026-10-27T08:00:00Z" }]);
+  const backup = { app: "SceneCards", version: 1, exportedAt: "2026-10-27T09:00:00Z", ...source };
+  assert.deepEqual(readDesktopBackup(backup), source);
+  assert.throws(() => readDesktopBackup({ ...backup, cards: [...source.cards, ...source.cards] }), /重复/);
+  assert.throws(() => readDesktopBackup({ ...backup, reviews: [...source.reviews, ...source.reviews] }), /重复/);
+  assert.throws(() => readDesktopBackup({ ...backup, deletedCards: null }), /元数据/);
+  assert.throws(() => readDesktopBackup({ entries: source.cards }), /完整词库/);
+});
+
+test("approved desktop merge preserves schedules, history, expression track and every cloud extra", () => {
+  const local = { ...store({ id: "a", expression: "desktop phrase", practiceType: "expression", meaning: "manual meaning", contentUpdatedAt: "2026-10-27T08:00:00Z", updatedAt: "2026-10-27T08:00:00Z", dueAt: "2026-11-01T08:00:00Z", intervalDays: 5, ease: 2.7, repetitions: 8, lapses: 2, lastReviewedAt: "2026-10-27T08:00:00Z", reviewQueueOrder: 77, fsrs: { stability: 4 } }, [{ id: "r", cardId: "a", at: "2026-10-27T08:00:00Z", rating: "hard" }]), installedSeeds: ["seed"] };
+  const remote = { ...emptyPrivateStore(), cards: [{ ...local.cards[0], meaning: "machine meaning", status: "draft", updatedAt: "2026-10-28T08:00:00Z", contentUpdatedAt: "2026-10-28T08:00:00Z", lastReviewedAt: null, repetitions: 0 }, { id: "extra", expression: "new cloud item", status: "draft", dueAt: "2026-11-04T08:00:00Z" }], reviews: [{ id: "extra-review", cardId: "extra", at: "2026-10-28T08:00:00Z", rating: "easy" }] };
+  const before = structuredClone({ local, remote });
+  assert.deepEqual(desktopConflictIds(local, remote), ["a"]);
+  const merged = mergeApprovedDesktopStore(local, remote, { approvedConflictIds: ["a"], now: "2026-10-28T09:00:00Z" });
+  const selected = merged.cards.find(card => card.id === "a");
+  const { updatedAt, contentUpdatedAt, ...content } = selected;
+  const { updatedAt: oldUpdated, contentUpdatedAt: oldContentUpdated, ...original } = local.cards[0];
+  assert.deepEqual(content, original);
+  assert(updatedAt > remote.cards[0].contentUpdatedAt);
+  assert.equal(updatedAt, contentUpdatedAt);
+  assert.deepEqual(merged.cards.find(card => card.id === "extra"), remote.cards[1]);
+  assert.deepEqual(new Map(merged.reviews.map(review => [review.id, review])), new Map([...local.reviews, ...remote.reviews].map(review => [review.id, review])));
+  assert.deepEqual(mergePrivateStores(merged, remote), merged);
+  assert.deepEqual({ local, remote }, before);
+});
+
+test("already identical desktop cards are not retimestamped", () => {
+  const local = store({ id: "a", expression: "unchanged", updatedAt: "2026-10-27T08:00:00Z" });
+  assert.deepEqual(mergeApprovedDesktopStore(local, local, { approvedConflictIds: [] }), local);
+});
+
+test("desktop preference refuses new phone history, edited events, newer schedules and unapproved conflicts", () => {
+  const local = store({ id: "a", expression: "desktop", contentUpdatedAt: "2026-10-27T08:00:00Z", lastReviewedAt: "2026-10-27T08:00:00Z" }, [{ id: "r", cardId: "a", at: "2026-10-27T08:00:00Z", rating: "good" }]);
+  const options = { approvedConflictIds: ["a"] };
+  assert.throws(() => mergeApprovedDesktopStore(local, store(local.cards[0], [{ id: "new", cardId: "a", at: "2026-10-28T08:00:00Z", rating: "easy" }]), options), /备份之外/);
+  assert.throws(() => mergeApprovedDesktopStore(local, store(local.cards[0], [{ ...local.reviews[0], rating: "hard" }]), options), /备份之外/);
+  assert.throws(() => mergeApprovedDesktopStore(local, store({ ...local.cards[0], lastReviewedAt: "2026-10-28T08:00:00Z" }), options), /更新的复习/);
+  assert.throws(() => mergeApprovedDesktopStore(local, store({ ...local.cards[0], expression: "cloud", contentUpdatedAt: "2026-10-28T08:00:00Z" }), { approvedConflictIds: [] }), /新的卡片冲突/);
+  assert.throws(() => mergeApprovedDesktopStore(local, local), /先核对/);
+});
+
+test("desktop preference does not undo cloud deletions or delete cloud-only items", () => {
+  const local = store({ id: "a", expression: "word" });
+  assert.throws(() => mergeApprovedDesktopStore(local, { ...emptyPrivateStore(), deletedCards: { a: "2026-10-28T08:00:00Z" } }, { approvedConflictIds: ["a"] }), /删除冲突/);
+  assert.throws(() => mergeApprovedDesktopStore({ ...local, deletedCards: { extra: "2026-10-28T08:00:00Z" } }, store({ id: "extra", expression: "extra" }), { approvedConflictIds: [] }), /额外条目/);
+});
+
+test("approved migration rechecks a stale cloud revision and stops on new review activity", async context => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  const owner = { ...alice, owner: true };
+  const local = store({ id: "a", expression: "desktop", contentUpdatedAt: "2026-10-27T08:00:00Z" });
+  const changed = await encryptPrivateStore(store({ id: "a", expression: "cloud" }, [{ id: "new", cardId: "a", at: "2026-10-28T08:00:00Z", rating: "good" }]), owner);
+  let puts = 0;
+  globalThis.fetch = async (url, options) => {
+    if (options.method === "PUT") { puts++; return Response.json({}, { status: 409 }); }
+    return Response.json(puts ? { revision: 1, document: changed } : { revision: 0, document: null });
+  };
+  await assert.rejects(() => migrateLocalCollection(owner, local, { preferLocal: true, approvedConflictIds: [] }), /备份之外/);
+  assert.equal(puts, 1);
+});
+
+test("approved migration includes unsent device extras and encrypts the selected desktop content", async context => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  const owner = { ...alice, owner: true }, local = store({ id: "a", expression: "desktop", contentUpdatedAt: "2026-10-27T08:00:00Z" });
+  const cloud = store({ id: "a", expression: "cloud", contentUpdatedAt: "2026-10-28T08:00:00Z" });
+  const currentStore = { ...cloud, cards: [...cloud.cards, { id: "extra", expression: "unsent extra" }] };
+  const document = await encryptPrivateStore(cloud, owner);
+  let uploaded;
+  globalThis.fetch = async (url, options) => {
+    if (options.method !== "PUT") return Response.json({ revision: 3, document });
+    const body = JSON.parse(options.body);
+    assert.equal(body.baseRevision, 3);
+    assert(!options.body.includes("desktop"));
+    uploaded = await decryptPrivateStore(body.document, owner);
+    return Response.json({ revision: 4 });
+  };
+  const migrated = await migrateLocalCollection(owner, local, { preferLocal: true, currentStore, approvedConflictIds: ["a"] });
+  assert.deepEqual(uploaded, migrated);
+  assert.equal(migrated.cards.find(card => card.id === "a").expression, "desktop");
+  assert.deepEqual(migrated.cards.find(card => card.id === "extra"), currentStore.cards[1]);
+});
+
+test("migration does not upload after the active account changes", async context => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  let puts = 0;
+  globalThis.fetch = async (url, options) => {
+    if (options.method === "PUT") puts++;
+    return Response.json({ revision: 0, document: null });
+  };
+  await assert.rejects(() => migrateLocalCollection({ ...alice, owner: true }, store({ id: "a", expression: "word" }), { canWrite: () => false }), /账户已改变/);
+  assert.equal(puts, 0);
 });

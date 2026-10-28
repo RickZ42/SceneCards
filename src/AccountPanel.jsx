@@ -7,15 +7,19 @@ import LogIn from "lucide-react/dist/esm/icons/log-in.js";
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.js";
 import UserPlus from "lucide-react/dist/esm/icons/user-plus.js";
 import X from "lucide-react/dist/esm/icons/x.js";
-import { ACCOUNT_ENDPOINT, createAccountInvite } from "./accountSync.js";
+import Upload from "lucide-react/dist/esm/icons/upload.js";
+import { createAccountInvite, readDesktopBackup } from "./accountSync.js";
 
-export default function AccountPanel({ session, status, existingConnection, onConnectLocal, onSignIn, onExisting, onSignOut, onSync, onClose }) {
+export default function AccountPanel({ session, status, existingConnection, onConnectLocal, onPreviewDesktop, onMigrateDesktop, onSignIn, onExisting, onSignOut, onSync, onClose }) {
   const [code, setCode] = useState("");
   const [visible, setVisible] = useState(false);
   const [name, setName] = useState("");
   const [invite, setInvite] = useState(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [desktopBackup, setDesktopBackup] = useState(null);
+  const [desktopApproved, setDesktopApproved] = useState(false);
+  const [desktopPreview, setDesktopPreview] = useState(null);
 
   async function run(action) {
     setBusy(true); setMessage("");
@@ -36,18 +40,37 @@ export default function AccountPanel({ session, status, existingConnection, onCo
     </div></label>;
   }
 
-  return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+  return <div className="modal-backdrop" role="presentation" onMouseDown={busy ? undefined : onClose}>
     <section className="card-modal account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title" onMouseDown={(event) => event.stopPropagation()}>
-      <div className="modal-header"><h2 id="account-title">{session ? session.name : "登录私人词库"}</h2><button type="button" className="icon-button" title="关闭" aria-label="关闭" onClick={onClose}><X size={20} /></button></div>
+      <div className="modal-header"><h2 id="account-title">{session ? session.name : "登录私人词库"}</h2><button type="button" className="icon-button" title="关闭" aria-label="关闭" disabled={busy} onClick={onClose}><X size={20} /></button></div>
       {session ? <div className="account-content">
         <p className={`account-sync-status ${status.state}`} role="status">{status.message || "等待同步"}</p>
         {secret(session.code, "私人访问码")}
         <p className="account-note">访问码用于登录其他设备，也是你的 Shortcut 收件密钥。请私下保管。</p>
         <label><span>Shortcut 服务地址</span><input readOnly value={session.endpoint} aria-label="Shortcut 服务地址" /></label>
         <div className="account-actions">
-          <button type="button" className="secondary-button" onClick={onSync} disabled={status.state === "syncing"}><RefreshCw size={18} />立即同步</button>
-          <button type="button" className="secondary-button" onClick={onSignOut}><LogOut size={18} />退出账户</button>
+          <button type="button" className="secondary-button" onClick={onSync} disabled={busy || status.state === "syncing"}><RefreshCw size={18} />立即同步</button>
+          <button type="button" className="secondary-button" disabled={busy} onClick={onSignOut}><LogOut size={18} />退出账户</button>
         </div>
+        {session.owner && onMigrateDesktop && <div className="account-migration">
+          <h3>迁入电脑词库</h3>
+          <label><span>电脑词库备份</span><input type="file" accept="application/json,.json" aria-label="选择电脑词库备份" disabled={busy} onChange={event => {
+            const file = event.target.files?.[0];
+            setDesktopBackup(null); setDesktopApproved(false); setDesktopPreview(null);
+            if (file) run(async () => {
+              if (file.size > 8 * 1024 * 1024) throw new Error("备份文件过大，请先核对文件");
+              const backup = readDesktopBackup(JSON.parse(await file.text()));
+              setDesktopPreview(onPreviewDesktop(backup));
+              setDesktopBackup(backup);
+            });
+          }} /></label>
+          {desktopBackup && desktopPreview && <p className="account-note" role="status">电脑备份：{desktopBackup.cards.length} 张卡片 · {desktopBackup.reviews.length} 条复习记录<br />采用电脑版本：{desktopPreview.conflictIds.length} 张 · 保留账户额外条目：{desktopPreview.extraCount} 条</p>}
+          <label className="account-show-code"><input type="checkbox" checked={desktopApproved} disabled={busy || !desktopBackup} onChange={event => setDesktopApproved(event.target.checked)} />采用电脑卡片版本，保留账户额外条目</label>
+          <button type="button" className="secondary-button" disabled={busy || !desktopBackup || !desktopApproved} onClick={() => run(async () => {
+            await onMigrateDesktop(desktopBackup, desktopPreview.conflictIds);
+            setDesktopBackup(null); setDesktopApproved(false); setMessage("电脑词库已合并，复习记录已保留");
+          })}><Upload size={18} />合并电脑词库</button>
+        </div>}
         {session.owner && <form className="account-invite" onSubmit={(event) => { event.preventDefault(); run(async () => { setInvite(await createAccountInvite(session, name)); setName(""); }); }}>
           <h3>邀请朋友</h3>
           <label><span>朋友的账户名称</span><input required maxLength={60} value={name} onChange={(event) => setName(event.target.value)} autoComplete="off" /></label>

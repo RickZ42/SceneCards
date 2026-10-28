@@ -134,25 +134,103 @@ function canonicalJson(value) {
   return value;
 }
 
+function sameValue(left, right) {
+  return JSON.stringify(canonicalJson(left)) === JSON.stringify(canonicalJson(right));
+}
+
+export function readDesktopBackup(value) {
+  if (value?.app !== "SceneCards" || value.version !== 1 || !Array.isArray(value.cards) || !value.cards.length || !Array.isArray(value.reviews)) {
+    throw new Error("请选择 SceneCards 下载的完整词库备份");
+  }
+  const ids = new Set();
+  for (const card of value.cards) {
+    if (typeof card.id !== "string" || !card.id || ids.has(card.id) || typeof card.expression !== "string") throw new Error("备份包含无效或重复的卡片身份");
+    ids.add(card.id);
+  }
+  const reviewIds = new Set();
+  for (const review of value.reviews) {
+    if (typeof review.id !== "string" || !review.id || reviewIds.has(review.id) || !ids.has(review.cardId) || !Number.isFinite(Date.parse(review.at)) || !["again", "hard", "good", "easy"].includes(review.rating)) {
+      throw new Error("备份包含无效或重复的复习记录");
+    }
+    reviewIds.add(review.id);
+  }
+  const store = emptyPrivateStore();
+  for (const key of Object.keys(store)) if (Object.hasOwn(value, key)) {
+    const valid = Array.isArray(store[key]) ? Array.isArray(value[key]) : value[key] && typeof value[key] === "object" && !Array.isArray(value[key]);
+    if (!valid) throw new Error("备份的词库元数据格式无效");
+    store[key] = value[key];
+  }
+  return store;
+}
+
+export function desktopConflictIds(local, remote) {
+  const cards = new Map(mergePrivateStores(local, remote).cards.map(card => [card.id, card]));
+  return local.cards.filter(card => !sameValue(card, cards.get(card.id))).map(card => card.id).sort();
+}
+
+export function mergeApprovedDesktopStore(local, remote, { approvedConflictIds, now = new Date().toISOString() } = {}) {
+  if (!Array.isArray(approvedConflictIds)) throw new Error("请先核对需要采用电脑版本的卡片");
+  const localCards = new Map(local.cards.map(card => [card.id, card]));
+  const localReviews = new Map(local.reviews.map(review => [review.id, review]));
+  for (const review of remote.reviews || []) {
+    if (localCards.has(review.cardId) && !sameValue(review, localReviews.get(review.id))) {
+      throw new Error("账户出现电脑备份之外的复习记录，已停止迁入；请先核对新进度");
+    }
+  }
+  for (const card of remote.cards || []) {
+    if (localCards.has(card.id) && compare(card.lastReviewedAt, localCards.get(card.id).lastReviewedAt) > 0) {
+      throw new Error("账户出现更新的复习进度，已停止迁入；请先核对");
+    }
+  }
+  const merged = mergePrivateStores(local, remote);
+  const mergedCards = new Map(merged.cards.map(card => [card.id, card]));
+  const changed = new Set(desktopConflictIds(local, remote));
+  const approved = new Set(approvedConflictIds);
+  if ([...changed].some(id => !approved.has(id))) throw new Error("账户出现新的卡片冲突，已停止迁入；请重新核对");
+  const prepared = local.cards.map(card => {
+    if (!mergedCards.has(card.id)) throw new Error("账户存在卡片删除冲突，未恢复或重建任何卡片");
+    if (!changed.has(card.id)) return card;
+    // Stamp the approved content choice so a stale phone cache cannot win it back.
+    const dates = [now, ...[card, mergedCards.get(card.id)].flatMap(item => [item.contentUpdatedAt, item.updatedAt, item.createdAt])].map(Date.parse).filter(Number.isFinite);
+    const updatedAt = new Date(Math.max(...dates) + 1).toISOString();
+    return { ...card, contentUpdatedAt: updatedAt, updatedAt };
+  });
+  const preparedById = new Map(prepared.map(card => [card.id, card]));
+  merged.cards = merged.cards.map(card => preparedById.get(card.id) || card).sort((a, b) => compare(b.createdAt, a.createdAt) || compare(a.id, b.id));
+  assertLocalCollectionPreserved({ ...local, cards: prepared }, merged);
+  const finalCards = new Map(merged.cards.map(card => [card.id, card]));
+  const finalReviews = new Map(merged.reviews.map(review => [review.id, review]));
+  if ((remote.cards || []).some(card => !localCards.has(card.id) && !sameValue(card, finalCards.get(card.id))) ||
+      (remote.reviews || []).some(review => !sameValue(review, finalReviews.get(review.id)))) {
+    throw new Error("无法完整保留账户额外条目，已停止迁入");
+  }
+  return merged;
+}
+
 function assertLocalCollectionPreserved(local, merged) {
   const cards = new Map(merged.cards.map(card => [card.id, card]));
   const reviews = new Map(merged.reviews.map(review => [review.id, review]));
-  const same = (left, right) => JSON.stringify(canonicalJson(left)) === JSON.stringify(canonicalJson(right));
-  const changed = local.cards.filter(card => !same(card, cards.get(card.id)));
-  if (changed.length || local.reviews.some(review => !same(review, reviews.get(review.id)))) {
+  const changed = local.cards.filter(card => !sameValue(card, cards.get(card.id)));
+  if (changed.length || local.reviews.some(review => !sameValue(review, reviews.get(review.id)))) {
     throw new Error("云端记录与电脑词库存在冲突，未连接或覆盖任何进度。请先核对两端记录。");
   }
 }
 
 // The explicit desktop migration must not let an older or conflicting cloud copy replace local work.
-export async function migrateLocalCollection(session, local) {
+export async function migrateLocalCollection(session, local, options = {}) {
   if (!session.owner) throw new Error("只有现有收件账户可以连接这份电脑词库");
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const remote = await request(session.endpoint, "/vault", { headers: headers(session.code) });
-    const remoteStore = remote.document ? await decryptPrivateStore(remote.document, session) : emptyPrivateStore();
-    const merged = mergePrivateStores(local, remoteStore);
-    assertLocalCollectionPreserved(local, merged);
+    const cloudStore = remote.document ? await decryptPrivateStore(remote.document, session) : emptyPrivateStore();
+    const remoteStore = options.currentStore ? mergePrivateStores(options.currentStore, cloudStore) : cloudStore;
+    const remoteReviews = new Map(remoteStore.reviews.map(review => [review.id, review]));
+    if (cloudStore.reviews.some(review => !sameValue(review, remoteReviews.get(review.id)))) throw new Error("账户复习记录存在冲突，已停止迁入");
+    const merged = options.preferLocal
+      ? mergeApprovedDesktopStore(local, remoteStore, options)
+      : mergePrivateStores(local, remoteStore);
+    if (!options.preferLocal) assertLocalCollectionPreserved(local, merged);
     const document = await encryptPrivateStore(merged, session);
+    if (options.canWrite && !options.canWrite()) throw new Error("当前账户已改变，已停止迁入");
     const result = await fetch(`${session.endpoint}/vault`, {
       method: "PUT", headers: headers(session.code),
       body: JSON.stringify({ baseRevision: remote.revision, document }),
