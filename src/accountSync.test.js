@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { accountCacheKey, decryptPrivateStore, desktopConflictIds, emptyPrivateStore, encryptPrivateStore, loadAccountCache, mergeApprovedDesktopStore, mergePrivateStores, migrateLocalCollection, readDesktopBackup, syncPrivateStore } from "./accountSync.js";
+import { scheduleCard } from "./reviewSchedule.js";
 
 const alice = { id: "alice", code: "sc1_" + "a".repeat(43), endpoint: "https://test.example" };
 const bob = { ...alice, id: "bob", code: "sc1_" + "b".repeat(43) };
@@ -190,7 +191,7 @@ test("desktop preference refuses new phone history, edited events, newer schedul
   const local = store({ id: "a", expression: "desktop", contentUpdatedAt: "2026-10-27T08:00:00Z", lastReviewedAt: "2026-10-27T08:00:00Z" }, [{ id: "r", cardId: "a", at: "2026-10-27T08:00:00Z", rating: "good" }]);
   const options = { approvedConflictIds: ["a"] };
   assert.throws(() => mergeApprovedDesktopStore(local, store(local.cards[0], [{ id: "new", cardId: "a", at: "2026-10-28T08:00:00Z", rating: "easy" }]), options), /备份之外/);
-  assert.throws(() => mergeApprovedDesktopStore(local, store(local.cards[0], [{ ...local.reviews[0], rating: "hard" }]), options), /备份之外/);
+  assert.throws(() => mergeApprovedDesktopStore(local, store(local.cards[0], [{ ...local.reviews[0], rating: "hard" }]), options), /同一复习记录/);
   assert.throws(() => mergeApprovedDesktopStore(local, store({ ...local.cards[0], lastReviewedAt: "2026-10-28T08:00:00Z" }), options), /更新的复习/);
   assert.throws(() => mergeApprovedDesktopStore(local, store({ ...local.cards[0], expression: "cloud", contentUpdatedAt: "2026-10-28T08:00:00Z" }), { approvedConflictIds: [] }), /新的卡片冲突/);
   assert.throws(() => mergeApprovedDesktopStore(local, local), /先核对/);
@@ -249,4 +250,92 @@ test("migration does not upload after the active account changes", async context
   };
   await assert.rejects(() => migrateLocalCollection({ ...alice, owner: true }, store({ id: "a", expression: "word" }), { canWrite: () => false }), /账户已改变/);
   assert.equal(puts, 0);
+});
+
+test("approved replay uses desktop progress and preserves both histories without synthetic events", () => {
+  const card = { id: "a", expression: "word", meaning: "manual", contentUpdatedAt: "2026-10-01T08:00:00Z", repetitions: 5, intervalDays: 21, ease: 2.7, lapses: 2, lastReviewedAt: "2026-10-27T08:00:00.000Z" };
+  const old = { id: "old", cardId: "a", at: "2026-10-27T08:00:00.000Z", rating: "hard" };
+  const recent = { id: "new", cardId: "a", at: "2026-10-28T08:00:00.000Z", rating: "good" };
+  const local = store(card, [old]);
+  const remote = store({ ...scheduleCard({ ...card, repetitions: 0, intervalDays: 0 }, "good", recent.at), scheduleUpdatedAt: undefined }, [recent]);
+  const original = structuredClone({ local, remote });
+  assert.deepEqual(desktopConflictIds(local, remote), []);
+  const merged = mergeApprovedDesktopStore(local, remote, { approvedConflictIds: [], replayNewReviews: true, now: "2026-10-28T09:00:00.000Z" });
+  assert.equal(merged.cards[0].repetitions, 6);
+  assert.equal(merged.cards[0].intervalDays, 57);
+  assert.equal(merged.cards[0].lapses, 2);
+  assert.equal(merged.cards[0].lastReviewedAt, recent.at);
+  assert.equal(merged.cards[0].meaning, card.meaning);
+  assert.deepEqual(merged.reviews, [old, recent]);
+  assert.deepEqual(mergePrivateStores(merged, remote), merged);
+  assert.deepEqual({ local, remote }, original);
+  const repeated = mergeApprovedDesktopStore(local, merged, { approvedConflictIds: ["a"], replayNewReviews: true });
+  assert.equal(repeated.cards[0].repetitions, 6);
+  assert.deepEqual(repeated.reviews, merged.reviews);
+});
+
+test("replay processes events in time order and retains again queue positions", () => {
+  const card = { id: "a", expression: "word", contentUpdatedAt: "2026-10-01T08:00:00Z", repetitions: 4, intervalDays: 21, ease: 2.7, lapses: 2, lastReviewedAt: "2026-10-27T08:00:00Z" };
+  const first = { id: "one", cardId: "a", at: "2026-10-28T08:00:00.000Z", rating: "again" };
+  const second = { id: "two", cardId: "a", at: "2026-10-28T08:01:00.000Z", rating: "good" };
+  const local = store(card);
+  const remote = store({ ...card, lastReviewedAt: "2026-10-28T08:00:59.999Z", reviewQueueOrder: undefined }, [second, first]);
+  const merged = mergeApprovedDesktopStore(local, remote, { approvedConflictIds: [], replayNewReviews: true });
+  assert.equal(merged.cards[0].repetitions, 1);
+  assert.equal(merged.cards[0].intervalDays, 1);
+  assert.equal(merged.cards[0].ease, 2.5);
+  assert.equal(merged.cards[0].lapses, 3);
+  assert.equal(Object.hasOwn(merged.cards[0], "reviewQueueOrder"), false);
+  const again = store({ ...card, lastReviewedAt: first.at, dueAt: "2026-10-28T07:59:00.000Z", reviewQueueOrder: 11 }, [first]);
+  const queued = mergeApprovedDesktopStore(local, again, { approvedConflictIds: [], replayNewReviews: true });
+  assert.equal(queued.cards[0].reviewQueueOrder, 11);
+  assert.equal(queued.cards[0].dueAt, again.cards[0].dueAt);
+});
+
+test("replay refuses uncertain old records or schedules without matching events", () => {
+  const local = store({ id: "a", expression: "word", lastReviewedAt: "2026-10-27T08:00:00Z" });
+  const options = { approvedConflictIds: [], replayNewReviews: true };
+  const oldEvent = { id: "old-unknown", cardId: "a", at: "2026-10-26T08:00:00Z", rating: "good" };
+  assert.throws(() => mergeApprovedDesktopStore(local, store(local.cards[0], [oldEvent]), options), /无法可靠重算/);
+  const event = { ...oldEvent, at: "2026-10-28T08:00:00Z" };
+  assert.throws(() => mergeApprovedDesktopStore(local, store({ ...local.cards[0], lastReviewedAt: "2026-10-28T09:00:00Z" }, [event]), options), /无法对应/);
+  assert.throws(() => mergeApprovedDesktopStore(local, store({ ...local.cards[0], lastReviewedAt: event.at }, [{ ...event, rating: "hard" }]), options), /无法可靠重算/);
+});
+
+test("corrected schedule versions survive newer content edits from a stale cache", () => {
+  const base = { id: "a", expression: "word", lastReviewedAt: "2026-10-28T08:00:00Z", repetitions: 1, intervalDays: 1, contentUpdatedAt: "2026-10-28T08:00:00Z" };
+  const fixed = store({ ...base, repetitions: 6, intervalDays: 57, scheduleUpdatedAt: "2026-10-28T09:00:00Z" });
+  const edited = store({ ...base, meaning: "later manual edit", contentUpdatedAt: "2026-10-28T10:00:00Z" });
+  const merged = mergePrivateStores(fixed, edited);
+  assert.equal(merged.cards[0].meaning, "later manual edit");
+  assert.equal(merged.cards[0].repetitions, 6);
+  assert.equal(merged.cards[0].intervalDays, 57);
+  assert.equal(merged.cards[0].scheduleUpdatedAt, fixed.cards[0].scheduleUpdatedAt);
+  const next = store(scheduleCard(merged.cards[0], "good", "2026-10-29T08:00:00Z"));
+  assert.deepEqual(mergePrivateStores(fixed, next), next);
+});
+
+test("approved replay retries concurrent review activity using the latest cloud revision", async context => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => { globalThis.fetch = originalFetch; });
+  const owner = { ...alice, owner: true };
+  const card = { id: "a", expression: "word", repetitions: 4, intervalDays: 10, ease: 2.5, contentUpdatedAt: "2026-10-01T08:00:00Z", lastReviewedAt: "2026-10-27T08:00:00Z" };
+  const first = { id: "one", cardId: "a", at: "2026-10-28T08:00:00.000Z", rating: "good" };
+  const second = { id: "two", cardId: "a", at: "2026-10-28T08:01:00.000Z", rating: "easy" };
+  const cloud = [first, second].map((review, index) => store({ ...card, lastReviewedAt: review.at }, [first, second].slice(0, index + 1)));
+  let puts = 0, uploaded;
+  globalThis.fetch = async (url, options) => {
+    if (options.method !== "PUT") return Response.json({ revision: puts, document: await encryptPrivateStore(cloud[Math.min(puts, 1)], owner) });
+    puts++;
+    if (puts === 1) return Response.json({}, { status: 409 });
+    const body = JSON.parse(options.body);
+    assert.equal(body.baseRevision, 1);
+    uploaded = await decryptPrivateStore(body.document, owner);
+    return Response.json({ revision: 2 });
+  };
+  const merged = await migrateLocalCollection(owner, store(card), { preferLocal: true, approvedConflictIds: [], replayNewReviews: true });
+  assert.equal(puts, 2);
+  assert.deepEqual(merged.reviews, [first, second]);
+  assert.equal(merged.cards[0].repetitions, 6);
+  assert.deepEqual(uploaded, merged);
 });

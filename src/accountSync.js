@@ -1,6 +1,8 @@
+import { scheduleCard } from "./reviewSchedule.js";
+
 export const ACCOUNT_ENDPOINT = import.meta.env?.VITE_ACCOUNT_ENDPOINT || "https://scenecards-mobile-inbox.scene-cards.workers.dev";
 export const ACCOUNT_SESSION_KEY = "scenecards.account-session.v1";
-const SCHEDULE_FIELDS = ["dueAt", "intervalDays", "ease", "repetitions", "lapses", "lastReviewedAt", "reviewQueueOrder"];
+const SCHEDULE_FIELDS = ["dueAt", "intervalDays", "ease", "repetitions", "lapses", "lastReviewedAt", "reviewQueueOrder", "scheduleUpdatedAt"];
 
 export function emptyPrivateStore() {
   return { cards: [], reviews: [], installedSeeds: [], dismissedCaptureIds: [], processedCaptureRevisions: {}, deletedCards: {} };
@@ -98,7 +100,7 @@ export function mergePrivateStores(local, remote) {
     if (deletedCards[id] && compare(content.restoredAt, deletedCards[id]) <= 0) continue;
     let schedule = content;
     if (left && right) {
-      const difference = compare(left.lastReviewedAt, right.lastReviewedAt);
+      const difference = compare(left.lastReviewedAt, right.lastReviewedAt) || compare(left.scheduleUpdatedAt || left.lastReviewedAt, right.scheduleUpdatedAt || right.lastReviewedAt);
       if (difference !== 0) schedule = difference > 0 ? left : right;
       else {
         const recent = latest.get(id);
@@ -165,35 +167,68 @@ export function readDesktopBackup(value) {
 
 export function desktopConflictIds(local, remote) {
   const cards = new Map(mergePrivateStores(local, remote).cards.map(card => [card.id, card]));
-  return local.cards.filter(card => !sameValue(card, cards.get(card.id))).map(card => card.id).sort();
+  const content = card => card && Object.fromEntries(Object.entries(card).filter(([key]) => !SCHEDULE_FIELDS.includes(key) && key !== "updatedAt"));
+  return local.cards.filter(card => !sameValue(content(card), content(cards.get(card.id)))).map(card => card.id).sort();
 }
 
-export function mergeApprovedDesktopStore(local, remote, { approvedConflictIds, now = new Date().toISOString() } = {}) {
+export function mergeApprovedDesktopStore(local, remote, { approvedConflictIds, replayNewReviews = false, now = new Date().toISOString() } = {}) {
   if (!Array.isArray(approvedConflictIds)) throw new Error("请先核对需要采用电脑版本的卡片");
   const localCards = new Map(local.cards.map(card => [card.id, card]));
   const localReviews = new Map(local.reviews.map(review => [review.id, review]));
+  const latestLocalReview = new Map();
+  for (const review of local.reviews) {
+    if (compare(review.at, latestLocalReview.get(review.cardId)) > 0) latestLocalReview.set(review.cardId, review.at);
+  }
+  const newReviews = new Map();
   for (const review of remote.reviews || []) {
-    if (localCards.has(review.cardId) && !sameValue(review, localReviews.get(review.id))) {
-      throw new Error("账户出现电脑备份之外的复习记录，已停止迁入；请先核对新进度");
+    if (localReviews.has(review.id) && !sameValue(review, localReviews.get(review.id))) throw new Error("同一复习记录存在冲突，已停止迁入");
+    if (localCards.has(review.cardId) && !localReviews.has(review.id)) {
+      if (!replayNewReviews) throw new Error("账户出现电脑备份之外的复习记录，已停止迁入；请先核对新进度");
+      const base = localCards.get(review.cardId);
+      const after = [base.lastReviewedAt, latestLocalReview.get(review.cardId)].filter(Boolean).sort().at(-1);
+      if (!Number.isFinite(Date.parse(review.at)) || !["again", "good", "easy"].includes(review.rating) || (after && compare(review.at, after) <= 0)) {
+        throw new Error("新增复习的时间或评分无法可靠重算，已停止迁入");
+      }
+      if (!newReviews.has(review.cardId)) newReviews.set(review.cardId, []);
+      newReviews.get(review.cardId).push(review);
     }
   }
   for (const card of remote.cards || []) {
-    if (localCards.has(card.id) && compare(card.lastReviewedAt, localCards.get(card.id).lastReviewedAt) > 0) {
+    if (localCards.has(card.id) && compare(card.lastReviewedAt, localCards.get(card.id).lastReviewedAt) > 0 && !newReviews.has(card.id)) {
       throw new Error("账户出现更新的复习进度，已停止迁入；请先核对");
     }
   }
   const merged = mergePrivateStores(local, remote);
   const mergedCards = new Map(merged.cards.map(card => [card.id, card]));
+  const remoteCards = new Map(remote.cards.map(card => [card.id, card]));
   const changed = new Set(desktopConflictIds(local, remote));
   const approved = new Set(approvedConflictIds);
   if ([...changed].some(id => !approved.has(id))) throw new Error("账户出现新的卡片冲突，已停止迁入；请重新核对");
   const prepared = local.cards.map(card => {
     if (!mergedCards.has(card.id)) throw new Error("账户存在卡片删除冲突，未恢复或重建任何卡片");
-    if (!changed.has(card.id)) return card;
+    const events = (newReviews.get(card.id) || []).sort((a, b) => compare(a.at, b.at) || compare(a.id, b.id));
+    let selected = card;
+    for (const event of events) selected = scheduleCard(selected, event.rating, event.at);
+    if (events.length) {
+      const last = events.at(-1), current = remoteCards.get(card.id);
+      if (!current || Math.abs(Date.parse(current.lastReviewedAt) - Date.parse(last.at)) > 5000 || !Number.isFinite(Date.parse(current.lastReviewedAt))) {
+        throw new Error("新增复习与当前排期无法对应，已停止迁入");
+      }
+      if (last.rating === "again") {
+        if (!Number.isFinite(current.reviewQueueOrder) || !Number.isFinite(Date.parse(current.dueAt)) || Date.parse(current.dueAt) > Date.parse(last.at)) {
+          throw new Error("无法保留忘词后的队尾顺序，已停止迁入");
+        }
+        selected = { ...selected, dueAt: current.dueAt, reviewQueueOrder: current.reviewQueueOrder };
+      } else {
+        selected = { ...selected };
+        delete selected.reviewQueueOrder;
+      }
+    }
+    if (!changed.has(card.id) && !events.length) return card;
     // Stamp the approved content choice so a stale phone cache cannot win it back.
     const dates = [now, ...[card, mergedCards.get(card.id)].flatMap(item => [item.contentUpdatedAt, item.updatedAt, item.createdAt])].map(Date.parse).filter(Number.isFinite);
     const updatedAt = new Date(Math.max(...dates) + 1).toISOString();
-    return { ...card, contentUpdatedAt: updatedAt, updatedAt };
+    return { ...selected, ...(events.length ? { scheduleUpdatedAt: updatedAt } : {}), contentUpdatedAt: updatedAt, updatedAt };
   });
   const preparedById = new Map(prepared.map(card => [card.id, card]));
   merged.cards = merged.cards.map(card => preparedById.get(card.id) || card).sort((a, b) => compare(b.createdAt, a.createdAt) || compare(a.id, b.id));

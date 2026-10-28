@@ -92,6 +92,13 @@ version timestamp so an older device cache cannot undo the choice. New review
 activity, unapproved conflicts, deletion conflicts or an account change stop the
 migration before upload. A stale cloud revision is checked again, never forced.
 
+If the owner explicitly approves retaining new reviews, the merge replays only
+events newer than the desktop history through the same scheduler used by normal
+review. It keeps the event IDs and timestamps, does not create practice events,
+and preserves cloud-only cards unchanged. Unreviewed desktop cards keep their
+schedule. A separate `scheduleUpdatedAt` version prevents stale device caches
+from replacing a corrected schedule when the last review event is the same.
+
 The owner can generate a single-use invitation for a friend. Invitations expire
 after seven days. Redeeming an invitation creates an empty account with a new
 private access code that is returned only to the recipient. Keep that code for

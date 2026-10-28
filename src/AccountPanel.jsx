@@ -20,6 +20,7 @@ export default function AccountPanel({ session, status, existingConnection, onCo
   const [desktopBackup, setDesktopBackup] = useState(null);
   const [desktopApproved, setDesktopApproved] = useState(false);
   const [desktopPreview, setDesktopPreview] = useState(null);
+  const [replayNewReviews, setReplayNewReviews] = useState(false);
 
   async function run(action) {
     setBusy(true); setMessage("");
@@ -56,7 +57,7 @@ export default function AccountPanel({ session, status, existingConnection, onCo
           <h3>迁入电脑词库</h3>
           <label><span>电脑词库备份</span><input type="file" accept="application/json,.json" aria-label="选择电脑词库备份" disabled={busy} onChange={event => {
             const file = event.target.files?.[0];
-            setDesktopBackup(null); setDesktopApproved(false); setDesktopPreview(null);
+            setDesktopBackup(null); setDesktopApproved(false); setDesktopPreview(null); setReplayNewReviews(false);
             if (file) run(async () => {
               if (file.size > 8 * 1024 * 1024) throw new Error("备份文件过大，请先核对文件");
               const backup = readDesktopBackup(JSON.parse(await file.text()));
@@ -64,11 +65,12 @@ export default function AccountPanel({ session, status, existingConnection, onCo
               setDesktopBackup(backup);
             });
           }} /></label>
-          {desktopBackup && desktopPreview && <p className="account-note" role="status">电脑备份：{desktopBackup.cards.length} 张卡片 · {desktopBackup.reviews.length} 条复习记录<br />采用电脑版本：{desktopPreview.conflictIds.length} 张 · 保留账户额外条目：{desktopPreview.extraCount} 条</p>}
+          {desktopBackup && desktopPreview && <p className="account-note" role="status">电脑备份：{desktopBackup.cards.length} 张卡片 · {desktopBackup.reviews.length} 条复习记录<br />采用电脑版本：{desktopPreview.conflictIds.length} 张 · 保留账户额外条目：{desktopPreview.extraCount} 条<br />新增复习：{desktopPreview.newReviewCount} 条 · 重算排期：{desktopPreview.rescheduledCount} 张</p>}
           <label className="account-show-code"><input type="checkbox" checked={desktopApproved} disabled={busy || !desktopBackup} onChange={event => setDesktopApproved(event.target.checked)} />采用电脑卡片版本，保留账户额外条目</label>
-          <button type="button" className="secondary-button" disabled={busy || !desktopBackup || !desktopApproved} onClick={() => run(async () => {
-            await onMigrateDesktop(desktopBackup, desktopPreview.conflictIds);
-            setDesktopBackup(null); setDesktopApproved(false); setMessage("电脑词库已合并，复习记录已保留");
+          {desktopPreview?.newReviewCount > 0 && <label className="account-show-code"><input type="checkbox" checked={replayNewReviews} disabled={busy} onChange={event => setReplayNewReviews(event.target.checked)} />保留新复习，基于电脑原进度更新排期</label>}
+          <button type="button" className="secondary-button" disabled={busy || !desktopBackup || !desktopApproved || (desktopPreview?.newReviewCount > 0 && !replayNewReviews)} onClick={() => run(async () => {
+            await onMigrateDesktop(desktopBackup, desktopPreview.conflictIds, { replayNewReviews });
+            setDesktopBackup(null); setDesktopApproved(false); setReplayNewReviews(false); setMessage("电脑词库已合并，全部复习记录已保留");
           })}><Upload size={18} />合并电脑词库</button>
         </div>}
         {session.owner && <form className="account-invite" onSubmit={(event) => { event.preventDefault(); run(async () => { setInvite(await createAccountInvite(session, name)); setName(""); }); }}>

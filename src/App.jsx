@@ -30,6 +30,7 @@ import MemoryScene from "./MemoryScene.jsx";
 import AnimationLibrary from "./AnimationLibrary.jsx";
 import { attachMemoryScenes, createAnimationQueue, memorySceneForCard } from "./memoryScenes.js";
 import { createPracticeTracks, isExpressionPracticeCard, normalizePracticeExpression } from "./practiceTracks.js";
+import { scheduleCard } from "./reviewSchedule.js";
 import {
   ACCOUNT_SESSION_KEY, accountCacheKey, decryptPrivateStore, emptyPrivateStore,
   desktopConflictIds, encryptPrivateStore, loadAccountCache, loadAccountSession, mergePrivateStores, migrateLocalCollection,
@@ -583,48 +584,6 @@ function calculateStreak(reviews) {
     cursor.setDate(cursor.getDate() - 1);
   }
   return streak;
-}
-
-function scheduleCard(card, rating) {
-  const now = new Date();
-  let repetitions = card.repetitions || 0;
-  let intervalDays = card.intervalDays || 0;
-  let ease = card.ease || 2.5;
-  let lapses = card.lapses || 0;
-  let dueAt;
-
-  if (rating === "again") {
-    repetitions = 0;
-    intervalDays = 0;
-    ease = Math.max(1.3, ease - 0.2);
-    lapses += 1;
-    dueAt = now;
-  } else if (rating === "good") {
-    repetitions += 1;
-    if (repetitions === 1) intervalDays = 1;
-    else if (repetitions === 2) intervalDays = 3;
-    else intervalDays = Math.max(4, Math.round(intervalDays * ease));
-    dueAt = new Date(now.getTime() + intervalDays * DAY_MS);
-  } else {
-    repetitions += 1;
-    ease = Math.min(3.2, ease + 0.15);
-    intervalDays = repetitions === 1
-      ? 4
-      : Math.max(7, Math.round((intervalDays || 3) * ease * 1.25));
-    dueAt = new Date(now.getTime() + intervalDays * DAY_MS);
-  }
-
-  return {
-    ...card,
-    repetitions,
-    contentUpdatedAt: card.contentUpdatedAt || card.updatedAt || card.createdAt,
-    intervalDays,
-    ease,
-    lapses,
-    dueAt: dueAt.toISOString(),
-    lastReviewedAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-  };
 }
 
 function IconButton({ label, children, className = "", ...props }) {
@@ -2591,10 +2550,17 @@ export default function App() {
     if (!session?.owner || !privateStoreRef.current) throw new Error("请先登录现有私人收件账户");
     const current = privateStoreRef.current.getStore();
     const ids = new Set(backup.cards.map(card => card.id));
-    return { conflictIds: desktopConflictIds(backup, current), extraCount: current.cards.filter(card => !ids.has(card.id)).length };
+    const reviewIds = new Set(backup.reviews.map(review => review.id));
+    const newReviews = current.reviews.filter(review => !reviewIds.has(review.id));
+    return {
+      conflictIds: desktopConflictIds(backup, current),
+      extraCount: current.cards.filter(card => !ids.has(card.id)).length,
+      newReviewCount: newReviews.length,
+      rescheduledCount: new Set(newReviews.filter(review => ids.has(review.cardId)).map(review => review.cardId)).size,
+    };
   }
 
-  async function migrateDesktopBackup(backup, approvedConflictIds) {
+  async function migrateDesktopBackup(backup, approvedConflictIds, { replayNewReviews = false } = {}) {
     if (!session?.owner || !privateStoreRef.current) throw new Error("请先登录现有私人收件账户");
     if (!Array.isArray(approvedConflictIds)) throw new Error("请先核对迁入预览");
     const device = privateStoreRef.current;
@@ -2606,7 +2572,7 @@ export default function App() {
     setReady(false);
     try {
       await device.flush();
-      const migrated = await migrateLocalCollection(session, backup, { preferLocal: true, approvedConflictIds, currentStore: before, canWrite: sameAccount });
+      const migrated = await migrateLocalCollection(session, backup, { preferLocal: true, approvedConflictIds, replayNewReviews, currentStore: before, canWrite: sameAccount });
       if (!sameAccount()) throw new Error("账户已改变，请回到原账户核对迁入结果");
       localStorage.setItem(accountCacheKey(session.id), JSON.stringify(await encryptPrivateStore(migrated, session)));
       setInitialStore(migrated);
